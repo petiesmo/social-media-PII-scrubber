@@ -1,3 +1,7 @@
+#%%
+#! bin/python 
+# smparser.py
+#Standard Library
 import zipfile
 import glob
 import os
@@ -8,20 +12,26 @@ import sys
 import json
 import platform
 import csv
-import scrubadub
 from datetime import datetime, timezone, timedelta
 from collections import defaultdict
-import face_recognition
-import cv2
 import shutil
 import pathlib
-import instaloader
+from pathlib import Path
 from itertools import dropwhile, takewhile
 from operator import itemgetter
 import re
-import nltk
-nltk.download("punkt")
 
+#Non-Standard
+import scrubadub
+import face_recognition
+import cv2
+#import instaloader  #No longer needed - not performing "online"
+#import nltk    #It does not appear this was used in the latest version of sm-parser
+#nltk.download("punkt")  
+#TODO: Does this have to download each time?  Can it come from cache?
+#%%
+#TODO: Make a MAIN function
+os.chdir(r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data')
 if not os.path.isdir('./inbox/temp'): os.mkdir('./inbox/temp')
 if not os.path.isdir('./outbox'): os.mkdir('./outbox')
 temp_out = os.path.join('inbox', 'temp')
@@ -29,8 +39,10 @@ outbox_path = os.path.join('outbox')
 
 rem_comments = []
 supported_types = ['.bmp', '.jpeg', '.jpg', '.jpe', '.png', '.tiff', '.tif']
-offline = len(sys.argv) == 2 and sys.argv[1] == 'offline'
-
+offline = True  #TODO: Remove 'online' elements 
+#offline = len(sys.argv) == 2 and sys.argv[1] == 'offline'
+#%%
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= UTILITY FUNCTIONS =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 def blur_faces(image_path):
     print("Blurring faces for image at location: {0}\n".format(image_path))
     img = cv2.imread(image_path)
@@ -53,12 +65,12 @@ def genCSV(folder, filename, content):
 
 def unzip(platform, temp_path):
     print('Unzipping {0} data dumps...'.format(platform), flush=True)
-    zips = glob.glob('./inbox/*.zip'.format(platform))
+    zips = glob.glob('./inbox/{0}*.zip'.format(platform))   #TODO: Fix device independent paths (pathlib?)
     for i, z in enumerate(zips):
         print('Unzipping {0} of {1} archives...'.format(i+1, len(zips)), flush=True)
         with zipfile.ZipFile(z, "r") as zip_ref:
             name = zip_ref.filename
-            assert(name[:8] == "./inbox/" and name[-4:] == ".zip")
+            #TODO: assert(name[:8] == "./inbox/" and name[-4:] == ".zip")
             name = name[8:-4]
             path = "./inbox/temp/{0}".format(name)
             zip_ref.extractall(path)
@@ -70,6 +82,7 @@ def unzip(platform, temp_path):
     # ID extracted dataset
     unzips = os.listdir(temp_path)
     ig_regex = re.compile(r'.*_{0}$'.format(platform))
+    ig_regex = re.compile(r'{0}'.format(platform)) #TODO: Fix this filter
     unzips = list(filter(ig_regex.search, unzips))
     print('\nUnzipping complete!', flush=True)
     return unzips
@@ -95,7 +108,7 @@ def ask_date():
 
 def out_of_range(curr, months_back, last_date):
     return (last_date-timedelta(days=months_back*30.4375) >= curr or curr > last_date)
-
+#%%
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= BEGIN =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= FACEBOOK =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
@@ -109,117 +122,179 @@ for fbu in unzip('facebook', temp_out):
 
     if os.path.isfile(profile_path):
         profile_json = open(profile_path).read()
-        display_name = json.loads(profile_json)['profile']['name']['full_name']
+        display_name = json.loads(profile_json)['profile_v2']['name']['full_name']
 
     print('Parsing {0}\'s Facebook...'.format(display_name), flush=True)
     months_back, last_date = ask_date()
-
+#%%
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= FB FRIENDS =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
-    print('Parsing {0}\'s friends...'.format(display_name), flush=True)
-    # Parse friends
-    friends_parsed = [['Total Friends', 'Removed Friends']]
-    friends_path = os.path.join(temp_out, fbu, 'friends', 'friends.json')
-    removed_path = os.path.join(temp_out, fbu, 'friends', 'removed_friends.json')
-    if os.path.isfile(friends_path):
-        friends_json = open(friends_path).read()
-        num_friends = len(json.loads(friends_json)['friends'])
-        if os.path.isfile(removed_path):
-            removed_json = open(removed_path).read()
-            removed_friends = json.loads(removed_json)['deleted_friends']
-            num_enemies = 0
-            for enemy in removed_friends:
-                num_enemies += 1
-            friends_parsed.append([num_friends, num_enemies])
-        else:
-            friends_parsed.append([num_friends, 0])
+print('Parsing {0}\'s friends...'.format(display_name), flush=True)
+# Parse friends
+friends_parsed = [['Total Friends', 'Removed Friends']]
+friends_path = os.path.join(temp_out, fbu, 'friends_and_followers', 'friends.json')
+removed_path = os.path.join(temp_out, fbu, 'friends_and_followers', 'removed_friends.json')
+if os.path.isfile(friends_path):
+    friends_json = open(friends_path).read()
+    num_friends = len(json.loads(friends_json)['friends_v2'])
+    if os.path.isfile(removed_path):
+        removed_json = open(removed_path).read()
+        removed_friends = json.loads(removed_json)['deleted_friends_v2']
+        num_enemies = 0
+        for enemy in removed_friends:
+            num_enemies += 1
+        friends_parsed.append([num_friends, num_enemies])
+    else:
+        friends_parsed.append([num_friends, 0])
 
-    genCSV(fbu, 'friends.csv', friends_parsed)
-
+genCSV(fbu, 'friends.csv', friends_parsed)
+#%%
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-= FB REACTIONS =-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
-    # Parse reactions
-    print('Parsing {0}\'s reactions...'.format(display_name), flush=True)
-    reactions_path = os.path.join(temp_out, fbu, 'likes_and_reactions', 'posts_and_comments.json')
-    categories = ['photo', 'comment', 'post', 'link', 'album', 'video', 'other']
-    reactions_parsed = [['From', 'To'] + categories]
-    if os.path.isfile(reactions_path):
-        reactions_json = open(reactions_path).read()
-        reactions = json.loads(reactions_json)['reactions']
-        react_totals = defaultdict(lambda: defaultdict(int))
-        start_date = end_date = False
-        for reaction in reactions:
-            try:
-                timestamp = datetime.fromtimestamp(reaction['timestamp'])
-                if out_of_range(timestamp, months_back, last_date): continue
-                # Extract reaction details
-                if not start_date or not end_date:
-                    start_date = end_date = timestamp
-                if(abs((start_date - timestamp).days) > 7):
-                    tmp_week = []
-                    for cat in categories:
-                        tmp_cat = ''
-                        for react in react_totals[cat]:
-                            tmp_cat += react + ': ' + str(react_totals[cat][react]) + ' '
-                        tmp_week.append(tmp_cat)
-                    reactions_parsed.append([end_date.date(), start_date.date()] + tmp_week)
-                    start_date = end_date = timestamp
-                    react_totals = defaultdict(lambda: defaultdict(int))
-                else:
-                    end_date = timestamp
+# Parse reactions
+print('Parsing {0}\'s reactions...'.format(display_name), flush=True)
+reactions_path = os.path.join(temp_out, fbu, 'comments_and_reactions', 'posts_and_comments.json')
+categories = ['photo', 'comment', 'post', 'link', 'album', 'video', 'other']
+reactions_parsed = [['From', 'To'] + categories]
+if os.path.isfile(reactions_path):
+    reactions_json = open(reactions_path).read()
+    reactions = json.loads(reactions_json)['reactions_v2']
+    react_totals = defaultdict(lambda: defaultdict(int))
+    start_date = end_date = False
+    for reaction in reactions:
+        try:
+            timestamp = datetime.fromtimestamp(reaction['timestamp'])
+            if out_of_range(timestamp, months_back, last_date): continue
+            # Extract reaction details
+            if not start_date or not end_date:
+                start_date = end_date = timestamp
+            if(abs((start_date - timestamp).days) > 7):
+                tmp_week = []
+                for cat in categories:
+                    tmp_cat = ''
+                    for react in react_totals[cat]:
+                        tmp_cat += react + ': ' + str(react_totals[cat][react]) + ' '
+                    tmp_week.append(tmp_cat)
+                reactions_parsed.append([end_date.date(), start_date.date()] + tmp_week)
+                start_date = end_date = timestamp
+                react_totals = defaultdict(lambda: defaultdict(int))
+            else:
+                end_date = timestamp
 
-                category = next((cat for cat in categories if cat in reaction['title']), 'other')
-                react_totals[category][reaction['data'][0]['reaction']['reaction']] += 1
-            except Exception as e:
-                print("Error parsing FB reaction: " + type(e).__name__ + ": {}".format(e))
+            category = next((cat for cat in categories if cat in reaction['title']), 'other')
+            react_totals[category][reaction['data'][0]['reaction']['reaction']] += 1
+        except Exception as e:
+            print("Error parsing FB reaction: " + type(e).__name__ + ": {}".format(e))
+            continue
+
+genCSV(fbu, 'reactions.csv', reactions_parsed)
+#%%
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= FB POSTS =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
+# Parse posts
+print('Parsing {0}\'s posts...'.format(display_name), flush=True)
+posts_parsed = [['Date', 'Time', 'Location', 'Post', 'Caption', 'Friend Comments', 'Subject Comments']]
+media_root = os.path.join(outbox_path, fbu, 'media')
+pathlib.Path(media_root).mkdir(parents=True, exist_ok=True)
+posts_path = os.path.join(temp_out, fbu, 'posts', 'your_posts_1.json')
+media_id = 0
+if os.path.isfile(posts_path):
+    posts_json = open(posts_path).read()
+    posts = json.loads(posts_json)
+    location = 'Profile'
+    #post_counter = 1
+    rem_comments = []
+    for post_counter, post in enumerate(posts,1):
+        try:
+            print('Parsing {0} of {1} posts...'.format(post_counter, len(posts)), flush=True)
+            #post_counter += 1
+            # Extract comment details
+            timestamp = datetime.fromtimestamp(post['timestamp'])
+            if out_of_range(timestamp, months_back, last_date): continue
+            post_date = timestamp.date()
+            post_time = timestamp.strftime("%#I:%M %p") if platform.system() == 'Windows' else timestamp.strftime("%-I:%M %p")
+            caption = ''
+            if 'data' in post:
+                if len(post['data']) > 0 and 'post' in post['data'][0]:
+                    caption += scrubadub.clean(post['data'][0]['post'])
+            if 'title' in post:
+                caption += scrubadub.clean(post['title'])
+
+            if 'attachments' in post:
+                if len(post['attachments']) == 0:
+                    continue
+                attachments = post['attachments'][0]['data']
+                for attachment in attachments:
+                    if 'media' in attachment:
+                        content = attachment['media']
+                        media = content['uri']
+                    elif 'external_context' in attachment:
+                        content = attachment['external_context']
+                        caption += ': ' + content['url']
+                        media = ''
+
+                    if 'description' in content:
+                            caption = scrubadub.clean(content['description'])
+                    friend_comments = ''
+                    subject_comments = ''
+                    if 'comments' in content:
+                        for comment in content['comments']:
+                            if (display_name in comment['author']):
+                                subject_comments += '"' + scrubadub.clean(comment['comment']) + '", '
+                                rem_comments.append(comment['comment'])
+                            else:
+                                friend_comments += '"' + scrubadub.clean(comment['comment']) + '", '
+                    scrubadub.clean(caption)
+                    media_src = os.path.join(temp_out, fbu, media)
+                    filename, file_extension = os.path.splitext(media)
+                    media_dest = 'N/A'
+                    if file_extension in supported_types:
+                        media_id += 1
+                        media_dest = os.path.join(media_root, '{0}{1}'.format(media_id, file_extension))
+                        cv2.imwrite(media_dest, blur_faces(media_src))
+                    entry = [post_date, post_time, location, media_dest, caption.encode('latin1').decode('utf8'), friend_comments.encode('latin1').decode('utf8'), subject_comments.encode('latin1').decode('utf8')]
+                    posts_parsed.append(entry)
+        except Exception as e:
+            print("Error parsing FB post: " + type(e).__name__ + ": {}".format(e))
+            continue
+
+# =-=-=-=-=-=-=-=-=-=-=-=-=-=-= FB GROUP POSTS =-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
+# GROUPS info deleted per Client
+#
+# =-=-=-=-=-=-=-=-=-=-=-=-=-= FB PROFILE UPDATES =-=-=-=-=-=-=-=-=-=-=-=-=-= #
+
+# Parse profile update posts
+print('Parsing {0}\'s profile updates...'.format(display_name), flush=True)
+posts_path = os.path.join(temp_out, fbu, 'profile_information', 'profile_update_history.json')
+if os.path.isfile(posts_path):
+    posts_json = open(posts_path).read()
+    posts = json.loads(posts_json)['profile_updates_v2']
+    post_counter = 1
+    rem_comments = []
+    for post in posts:
+        try:
+            print('Parsing {0} of {1} updates...'.format(post_counter, len(posts)), flush=True)
+            post_counter += 1
+            # Extract comment details
+            timestamp = datetime.fromtimestamp(post['timestamp'])
+            if out_of_range(timestamp, months_back, last_date): continue
+            post_date = timestamp.date()
+            post_time = timestamp.strftime("%#I:%M %p") if platform.system() == 'Windows' else timestamp.strftime("%-I:%M %p")
+            if 'title' in post:
+                caption = post['title']
+            else:
                 continue
 
-    genCSV(fbu, 'reactions.csv', reactions_parsed)
-
-# =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= FB POSTS =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
-
-    # Parse posts
-    print('Parsing {0}\'s posts...'.format(display_name), flush=True)
-    posts_parsed = [['Date', 'Time', 'Location', 'Post', 'Caption', 'Friend Comments', 'Subject Comments']]
-    media_root = os.path.join(outbox_path, fbu, 'media')
-    pathlib.Path(media_root).mkdir(parents=True, exist_ok=True)
-    posts_path = os.path.join(temp_out, fbu, 'posts', 'your_posts_1.json')
-    media_id = 0
-    if os.path.isfile(posts_path):
-        posts_json = open(posts_path).read()
-        posts = json.loads(posts_json)
-        location = 'Profile'
-        post_counter = 1
-        rem_comments = []
-        for post in posts:
-            try:
-                print('Parsing {0} of {1} posts...'.format(post_counter, len(posts)), flush=True)
-                post_counter += 1
-                # Extract comment details
-                timestamp = datetime.fromtimestamp(post['timestamp'])
-                if out_of_range(timestamp, months_back, last_date): continue
-                post_date = timestamp.date()
-                post_time = timestamp.strftime("%#I:%M %p") if platform.system() == 'Windows' else timestamp.strftime("%-I:%M %p")
-                if 'data' in post:
-                    if len(post['data']) > 0 and 'post' in post['data'][0]:
-                        caption = scrubadub.clean(post['data'][0]['post'])
-                elif 'title' in post:
-                    caption = scrubadub.clean(post['title'])
-
-                if 'attachments' in post:
-                    if len(post['attachments']) == 0:
-                        continue
-                    attachments = post['attachments'][0]['data']
-                    for attachment in attachments:
-                        if 'media' in attachment:
-                            content = attachment['media']
-                            media = content['uri']
-                        elif 'external_context' in attachment:
-                            content = attachment['external_context']
-                            caption += ': ' + content['url']
-                            media = ''
-                        if 'description' in content:
-                                caption = scrubadub.clean(content['description'])
+            location = 'Profile'
+            media_dest = 'N/A'
+            if 'attachments' not in post:
+                entry = [post_date, post_time, location, media_dest, caption, '', '']
+                posts_parsed.append(entry)
+            else:
+                attachments = post['attachments'][0]['data']
+                for attachment in attachments:
+                    if 'media' in attachment:
+                        content = attachment['media']
+                        media = content['uri']
                         friend_comments = ''
                         subject_comments = ''
                         if 'comments' in content:
@@ -229,232 +304,104 @@ for fbu in unzip('facebook', temp_out):
                                     rem_comments.append(comment['comment'])
                                 else:
                                     friend_comments += '"' + scrubadub.clean(comment['comment']) + '", '
-                        scrubadub.clean(caption)
-                        media_src = os.path.join(temp_out, fbu, media)
-                        filename, file_extension = os.path.splitext(media)
-                        media_dest = 'N/A'
-                        if file_extension in supported_types:
-                            media_id += 1
-                            media_dest = os.path.join(media_root, '{0}{1}'.format(media_id, file_extension))
-                            cv2.imwrite(media_dest, blur_faces(media_src))
-                        entry = [post_date, post_time, location, media_dest, caption.encode('latin1').decode('utf8'), friend_comments.encode('latin1').decode('utf8'), subject_comments.encode('latin1').decode('utf8')]
-                        posts_parsed.append(entry)
-            except Exception as e:
-                print("Error parsing FB post: " + type(e).__name__ + ": {}".format(e))
-                continue
 
-# =-=-=-=-=-=-=-=-=-=-=-=-=-=-= FB GROUP POSTS =-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
-
-    # Parse group posts
-    # print('Parsing {0}\'s group posts...'.format(display_name), flush=True)
-    # posts_path = os.path.join(temp_out, fbu, 'groups', 'your_group_membership_activity.json')
-    # if os.path.isfile(posts_path):
-    #     found_posts += 1
-    #     posts_json = open(posts_path).read()
-    #     print(json.loads(posts_json))
-    #     posts = json.loads(posts_json)['group_posts']
-    #     if 'activity_log_data' in posts:
-    #         posts = posts['activity_log_data']
-    #     post_counter = 1
-    #     rem_comments = []
-    #     for post in posts:
-    #         print('Parsing {0} of {1} group posts...'.format(post_counter, len(posts)), flush=True)
-    #         post_counter += 1
-    #         # Extract comment details
-    #         if datetime.fromtimestamp(post['timestamp']) < datetime.fromisoformat(date_string):
-    #             continue
-    #         timestamp = datetime.fromtimestamp(post['timestamp'], timezone.utc)
-    #         post_date = timestamp.date()
-    #         post_time = timestamp.strftime("%#I:%M %p") if platform.system() == 'Windows' else timestamp.strftime("%-I:%M %p")
-    #         subject_comments = ''
-    #         location = 'Group'
-    #         caption = ''
-    #         media_dest = 'N/A'
-    #         if 'data' in post:
-    #             if 'post' in post['data'][0]:
-    #                 caption = scrubadub.clean(post['data'][0]['post'])
-    #             else:
-    #                 caption = scrubadub.clean(post['title'])
-    #             if 'comment' in post['data'][0]:
-    #                 subject_comments += '"' + scrubadub.clean(post['data'][0]['comment']['comment']) + '", '
-    #                 location = post['data'][0]['comment']['group']
-    #             elif 'title' in post:
-    #                 location = post['title'].split(' in ',1)[1]
-    #         else:
-    #             continue
-    #         if 'attachments' not in post:
-    #             entry = [post_date, post_time, location, media_dest, caption, '', subject_comments]
-    #             posts_parsed.append(entry)
-    #         else:
-    #             attachments = post['attachments'][0]['data']
-    #             for attachment in attachments:
-    #                 if 'media' in attachment:
-    #                     content = attachment['media']
-    #                     media = content['uri']
-    #                 elif 'external_context' in attachment:
-    #                     content = attachment['external_context']
-    #                     caption += ': ' + content['url']
-    #                     media = ''
-    #                 if 'description' in content:
-    #                         caption = scrubadub.clean(content['description'])
-    #                 friend_comments = ''
-    #                 subject_comments = ''
-    #                 if 'comments' in content:
-    #                     for comment in content['comments']:
-    #                         if (display_name in comment['author']):
-    #                             subject_comments += '"' + scrubadub.clean(comment['comment']) + '", '
-    #                             rem_comments.append(comment['comment'])
-    #                         else:
-    #                             friend_comments += '"' + scrubadub.clean(comment['comment']) + '", '
-    #                 scrubadub.clean(caption)
-    #                 media_src = os.path.join(temp_out, fbu, media)
-    #                 filename, file_extension = os.path.splitext(media)
-    #                 if file_extension in supported_types:
-    #                     media_id += 1
-    #                     media_dest = os.path.join(media_root, '{0}{1}'.format(media_id, file_extension))
-    #                     cv2.imwrite(media_dest, blur_faces(media_src))
-    #                 entry = [post_date, post_time, location, media_dest, caption.encode('latin1').decode('utf8'), friend_comments.encode('latin1').decode('utf8'), subject_comments.encode('latin1').decode('utf8')]
-    #                 posts_parsed.append(entry)
-
-# =-=-=-=-=-=-=-=-=-=-=-=-=-= FB PROFILE UPDATES =-=-=-=-=-=-=-=-=-=-=-=-=-= #
-
-    # Parse profile update posts
-    print('Parsing {0}\'s profile updates...'.format(display_name), flush=True)
-    posts_path = os.path.join(temp_out, fbu, 'profile_information', 'profile_update_history.json')
-    if os.path.isfile(posts_path):
-        posts_json = open(posts_path).read()
-        posts = json.loads(posts_json)['profile_updates']
-        post_counter = 1
-        rem_comments = []
-        for post in posts:
-            try:
-                print('Parsing {0} of {1} updates...'.format(post_counter, len(posts)), flush=True)
-                post_counter += 1
-                # Extract comment details
-                timestamp = datetime.fromtimestamp(post['timestamp'])
-                if out_of_range(timestamp, months_back, last_date): continue
-                post_date = timestamp.date()
-                post_time = timestamp.strftime("%#I:%M %p") if platform.system() == 'Windows' else timestamp.strftime("%-I:%M %p")
-                if 'title' in post:
-                    caption = post['title']
-                else:
-                    continue
-
-                location = 'Profile'
-                media_dest = 'N/A'
-                if 'attachments' not in post:
-                    entry = [post_date, post_time, location, media_dest, caption, '', '']
+                    scrubadub.clean(caption)
+                    media_src = os.path.join(temp_out, fbu, media)
+                    filename, file_extension = os.path.splitext(media)
+                    if file_extension in supported_types:
+                        media_id += 1
+                        media_dest = os.path.join(media_root, '{0}{1}'.format(media_id, file_extension))
+                        cv2.imwrite(media_dest, blur_faces(media_src))
+                    entry = [post_date, post_time, location, media_dest, caption.encode('latin1').decode('utf8'), friend_comments.encode('latin1').decode('utf8'), subject_comments.encode('latin1').decode('utf8')]
                     posts_parsed.append(entry)
-                else:
-                    attachments = post['attachments'][0]['data']
-                    for attachment in attachments:
-                        if 'media' in attachment:
-                            content = attachment['media']
-                            media = content['uri']
-                            friend_comments = ''
-                            subject_comments = ''
-                            if 'comments' in content:
-                                for comment in content['comments']:
-                                    if (display_name in comment['author']):
-                                        subject_comments += '"' + scrubadub.clean(comment['comment']) + '", '
-                                        rem_comments.append(comment['comment'])
-                                    else:
-                                        friend_comments += '"' + scrubadub.clean(comment['comment']) + '", '
 
-                        scrubadub.clean(caption)
-                        media_src = os.path.join(temp_out, fbu, media)
-                        filename, file_extension = os.path.splitext(media)
-                        if file_extension in supported_types:
-                            media_id += 1
-                            media_dest = os.path.join(media_root, '{0}{1}'.format(media_id, file_extension))
-                            cv2.imwrite(media_dest, blur_faces(media_src))
-                        entry = [post_date, post_time, location, media_dest, caption.encode('latin1').decode('utf8'), friend_comments.encode('latin1').decode('utf8'), subject_comments.encode('latin1').decode('utf8')]
-                        posts_parsed.append(entry)
+        except Exception as e:
+            print("Error parsing FB profile update post: " + type(e).__name__ + ": {}".format(e))
+            continue
 
-            except Exception as e:
-                print("Error parsing FB profile update post: " + type(e).__name__ + ": {}".format(e))
-                continue
-
-    genCSV(fbu, 'posts.csv', posts_parsed)
-
+genCSV(fbu, 'posts.csv', posts_parsed)
+#%%
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= FB COMMENTS =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
-    # Parse comments and likes
-    print('Parsing {0}\'s comments and likes...'.format(display_name), flush=True)
-    comments_path = os.path.join(temp_out, fbu, 'comments', 'comments.json')
-    comments_parsed = [['Date', 'Time', 'Author', 'Subject Comment', 'Friend Timeline Comment', 'URL']]
-    if os.path.isfile(comments_path):
-        comments_json = open(comments_path).read()
-        comments = json.loads(comments_json)['comments']
-        for comment in comments:
+# Parse comments and likes
+print('Parsing {0}\'s comments and likes...'.format(display_name), flush=True)
+comments_path = os.path.join(temp_out, fbu, 'comments_and_reactions', 'comments.json')
+comments_parsed = [['Date', 'Time', 'Author', 'Subject Comment', 'Friend Timeline Comment', 'URL']]
+if os.path.isfile(comments_path):
+    comments_json = open(comments_path).read()
+    comments = json.loads(comments_json)['comments_v2']
+    for comment in comments:
+        # Extract comment details
+        try:
+            timestamp = datetime.fromtimestamp(comment['timestamp'])
+            if out_of_range(timestamp, months_back, last_date): continue
+            comment_date = timestamp.date()
+            comment_time = timestamp.strftime("%#I:%M %p") if platform.system() == 'Windows' else timestamp.strftime("%-I:%M %p")
+            #TODO: convert to .get statement
+            try: comment_attachment = comment['attachments'][0]['data'][0]['external_context']['url']
+            except: comment_attachment = ""
+            try:
+                cc = comment['data'][0]['comment']['comment']
+                if cc not in rem_comments:
+                    comment_text = scrubadub.clean(cc)
+                else: continue
+            except: comment_text = ""
+            comments_parsed.append([comment_date, comment_time, 'Participant', comment_text.encode('latin1').decode('utf8'), '', comment_attachment])
+        except Exception as e:
+            print("Error parsing FB comment: " + type(e).__name__ + ": {}".format(e))
+            continue
+
+#TODO: FIND this information in v2 schema!
+"""BYPASSED UNTIL INFO FOUND
+timeline_path = os.path.join(temp_out, fbu, 'posts', 'other_people\'s_posts_to_your_timeline.json')
+if os.path.isfile(timeline_path):
+    timeline_json = open(timeline_path).read()
+    timeline = json.loads(timeline_json)['wall_posts_sent_to_you']
+    # print(timeline)
+    for timeline_post in timeline['activity_log_data']:
+        try:
             # Extract comment details
-            try:
-                timestamp = datetime.fromtimestamp(comment['timestamp'])
-                if out_of_range(timestamp, months_back, last_date): continue
-                comment_date = timestamp.date()
-                comment_time = timestamp.strftime("%#I:%M %p") if platform.system() == 'Windows' else timestamp.strftime("%-I:%M %p")
-                try: comment_attachment = comment['attachments'][0]['data'][0]['external_context']['url']
-                except: comment_attachment = ""
-                try:
-                    cc = comment['data'][0]['comment']['comment']
-                    if cc not in rem_comments:
-                        comment_text = scrubadub.clean(cc)
-                    else: continue
-                except: comment_text = ""
-                comments_parsed.append([comment_date, comment_time, 'Participant', comment_text.encode('latin1').decode('utf8'), '', comment_attachment])
-            except Exception as e:
-                print("Error parsing FB comment: " + type(e).__name__ + ": {}".format(e))
+            timestamp = datetime.fromtimestamp(timeline_post['timestamp'])
+            if out_of_range(timestamp, months_back, last_date): continue
+            timeline_post_date = timestamp.date()
+            timeline_post_time = timestamp.strftime("%#I:%M %p") if platform.system() == 'Windows' else timestamp.strftime("%-I:%M %p")
+
+            if 'data' not in timeline_post:
                 continue
 
-    timeline_path = os.path.join(temp_out, fbu, 'posts', 'other_people\'s_posts_to_your_timeline.json')
-    if os.path.isfile(timeline_path):
-        timeline_json = open(timeline_path).read()
-        timeline = json.loads(timeline_json)['wall_posts_sent_to_you']
-        # print(timeline)
-        for timeline_post in timeline['activity_log_data']:
-            try:
-                # Extract comment details
-                timestamp = datetime.fromtimestamp(timeline_post['timestamp'])
-                if out_of_range(timestamp, months_back, last_date): continue
-                timeline_post_date = timestamp.date()
-                timeline_post_time = timestamp.strftime("%#I:%M %p") if platform.system() == 'Windows' else timestamp.strftime("%-I:%M %p")
+            attachment = ''
+            if 'attachments' in timeline_post:
+                if 'data' in timeline_post['attachments'][0]:
+                    if 'media' in timeline_post['attachments'][0]['data'][0]:
+                        attachment = timeline_post['attachments'][0]['data'][0]['media']['uri']
+                    elif 'external_context' in timeline_post['attachments'][0]['data'][0]:
+                        attachment = timeline_post['attachments'][0]['data'][0]['external_context']['url']
 
-                if 'data' not in timeline_post:
-                    continue
-
-                attachment = ''
-                if 'attachments' in timeline_post:
-                    if 'data' in timeline_post['attachments'][0]:
-                        if 'media' in timeline_post['attachments'][0]['data'][0]:
-                            attachment = timeline_post['attachments'][0]['data'][0]['media']['uri']
-                        elif 'external_context' in timeline_post['attachments'][0]['data'][0]:
-                            attachment = timeline_post['attachments'][0]['data'][0]['external_context']['url']
-
-                if 'post' not in timeline_post['data'][0]:
-                    if attachment is not '':
-                        comment_text = attachment
-                    else:
-                        continue
+            if 'post' not in timeline_post['data'][0]:
+                if attachment is not '':
+                    comment_text = attachment
                 else:
-                    comment_text = timeline_post['data'][0]['post']
+                    continue
+            else:
+                comment_text = timeline_post['data'][0]['post']
 
-                comments_parsed.append([timeline_post_date, timeline_post_time, 'Friend', comment_text.encode('latin1').decode('utf8'), attachment])
-            except Exception as e:
-                print("Error parsing FB timeline post: " + type(e).__name__ + ": {}".format(e))
-                continue
-
-    genCSV(fbu, 'comments.csv', comments_parsed)
-
+            comments_parsed.append([timeline_post_date, timeline_post_time, 'Friend', comment_text.encode('latin1').decode('utf8'), attachment])
+        except Exception as e:
+            print("Error parsing FB timeline post: " + type(e).__name__ + ": {}".format(e))
+            continue
+"""
+genCSV(fbu, 'comments.csv', comments_parsed)
+#%%
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= BEGIN =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= INSTAGRAM =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 # =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= #
 
-# Parse Instagram files
+# Parse Instagram filesg
 for igu in unzip('instagram', temp_out):
     # Get display name
     profile_path = os.path.join(temp_out, igu, 'profile.json')
-    profile_json = json.loads(open(profile_path).read())
+    profile_json = json.loads(open(profile_path).read()) #TODO: file not found error
     display_name = profile_json['name'] if 'name' in profile_json else ''
     user_name = profile_json['username']
     media_root = os.path.join(outbox_path, igu, 'media')
@@ -680,5 +627,5 @@ for igu in unzip('instagram', temp_out):
         genCSV(igu, 'posts.csv', posts_parsed)
 
 print('Cleaning up the temp folder...')
-shutil.rmtree('./inbox/temp')
+#TODO: Override: shutil.rmtree('./inbox/temp')
 print('Done!')
