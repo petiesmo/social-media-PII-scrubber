@@ -1,7 +1,7 @@
 #smparser-class
 
 import csv
-from datetime import datetime, timedelta
+from datetime import datetime, date, timedelta
 import json
 import logging
 from pathlib import Path
@@ -23,7 +23,8 @@ class SMParser():
         self.zip_path = Path(zip_path)
         self.person_name = person_name
         self.person_alias = person_alias    #TODO: Ask Jackie if need to create UUID? Answer: No, just allow for User to Input
-
+		self.ask_date()
+		
         self.home_path = home_dir if home_dir is None else self.zip_path.parent
         self.temp_path = self.home_path / 'TEMP'
         self.temp_path.mkdir(parents=True, exist_ok=True)
@@ -37,18 +38,28 @@ class SMParser():
             and open files without extracting the entire archive'''
         pass
         return None
+        
     def detect_files(self):
         test = all([f.isfile() for f in self.json_files])
         return test
 
     #Utility Functions
-    def ask_date():
+    def ask_date(self):
         '''Launch a date picker with pysimplegui'''
-        pass
+        self.months_back = 24
+        self.last_time = date.today()
+        self.first_time = self.last_time - timedelta(months=self.months_back)
         return None
-    def out_of_range():
-        pass
-        return None
+        
+    def in_date_range(self, check_date):
+        '''Accepts a Date object, returning boolean'''
+        return self.first_time <= check_date <= self.last_time
+        
+    def get_json(self, folder, filename):
+	    '''Retrieves json file and returns an object'''
+	    json_path = self.zip_path / folder / f"{filename}.json"
+	    return json.load(open(json_path), object_hook=lambda d:SimpleNamespace(**d))
+    
     def blur_faces(self, img_path):
         '''Detect the faces in an image & apply blur effect over each'''
         img = cv2.imread(img_path)
@@ -70,6 +81,10 @@ class SMParser():
                 csv_writer.writerow(entry)
         return None
     
+    def clean_text(text):
+	    text = scrubadub.clean(text)
+	    return re.sub(r'@\S*', "{{USERNAME}}", text).encode('latin1', 'ignore').decode('utf8', 'ignore')
+
     #Parse Functions
 
 class FBParser(SMParser):
