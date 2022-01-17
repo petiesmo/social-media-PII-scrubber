@@ -1,7 +1,6 @@
 #%%
-#smparser-classes
+#smparser-classes.py
 
-#from collections import namedtuple
 import csv
 from dataclasses import dataclass
 from datetime import datetime, date, timedelta
@@ -10,6 +9,7 @@ import imghdr
 import json
 import logging
 from pathlib import Path
+import platform
 import re
 from types import SimpleNamespace
 import zipfile
@@ -19,19 +19,13 @@ import zipfile
 #import scrubadub
 #import pysimplegui as sg
 #%%
-def gist_json_object():
-    data = '{"name":"John Smith","Hometown":{"name":"New York","id":123}}'
-    x = json.loads(data, object_hook=lambda d:SimpleNamespace(**d))
-    print(x.name, x.hometown.name, x.hometown.id)
-    return x
-
 class SMParser():
 	def __init__(self, person_name, person_alias, zip_path, home_dir=None):
 		self.VALID_TYPES = ['.bmp', '.jpeg', '.jpg', '.jpe', '.png', '.tiff', '.tif']
 		self.zip_file = zipfile.ZipFile(zip_path)
 		self.zip_root = zipfile.Path(self.zip_file)
 		self.person_name = person_name
-		self.person_alias = person_alias    #TODO: need to create UUID? Answer: No, just allow for User to Input
+		self.person_alias = person_alias
 		self.ask_date()
 		self.sys_check()
 
@@ -39,13 +33,22 @@ class SMParser():
 		self.temp_path = self.home_path / 'TEMP'
 		self.temp_path.mkdir(parents=True, exist_ok=True)
 		self.outbox_path = self.home_path / 'outbox'
-		self.outbox_path.mkdir(parents=True, exist_ok=True)
+		self.media_path = self.outbox_path / 'media'
+		self.media_path.mkdir(parents=True, exist_ok=True)
 		self.file_mapping = {}  #{fcsv: {fjson: relpath, fnparse:_, header:[,]}, csvfile2:...}
+
+	def sys_check(self):
+		self.timetype = 1 if platform.system() == 'Windows' else -1
+		self.time_string_opts = {
+			1: lambda ts: ts.strftime("%#I:%M %p"),
+			-1: lambda ts: ts.strftime("%-I:%M %p")
+		}
+		return True
 
     #Unip and locate files
 	def unzip(self):
 		'''This code will take advantage of the zipfile context managers
-			and open files without extracting the entire archive'''
+			and open files WITHOUT extracting the entire archive'''
 		pass
 		return None
         
@@ -55,7 +58,7 @@ class SMParser():
 
     #Utility Functions
 	def ask_date(self):
-		'''Launch a date picker with pysimplegui'''
+		'''TODO: Launch a date picker with pysimplegui'''
 		self.months_back = 24
 		self.last_time = date.today()
 		self.first_time = self.last_time - relativedelta(months=self.months_back)
@@ -74,16 +77,32 @@ class SMParser():
 		'''File path relative to ziproot'''
 		image_path = self.zip_root / folder / filename
 		return image_path.read_bytes()
-	    
-	""" def blur_faces(self, img_path):
+
+	def parse_img_ext(self, mediafp):
+		ext_type = mediafp.suffix 
+		return ext_type if ext_type in self.VALID_TYPES else False
+			
+	def blur_faces(self, img_data):
 		'''Detect the faces in an image & apply blur effect over each'''
-		img = cv2.imread(img_path)
+		#img = cv2.imread(img_path)
 		faces = face_recognition.face_locations(img)
 		logging.debug(f'Blurring {len(faces)} faces for image at location: {img_path}')
 		for (top, right, bottom, left) in faces:
 			face_image = img[top:bottom, left:right]
 			img[top:bottom, left:right] = cv2.GaussianBlur(face_image, (99, 99), 30)
-		return img """
+		return img
+
+	def scrub_and_save_media(self, media_list):
+		'''Cycle through all media, anonymizing each by blurring faces'''
+		for ph in media_list:
+			photo_bytes = ph.fpsrc.read_bytes()
+			photo_data = cv2.imread(photo_bytes)
+			img = self.blur_faces(photo_data)
+			if img is None: return False
+			if not ph.Path.parent.is_dir(): ph.Path.parent.mkdir(parents=True, exist_ok=True)
+			cv2.imwrite(ph.Path, img)
+			
+		return True
 
 	def genCSV(self, csv_name, header, data):
 		'''Generate CSV files from data (a list of dicts)'''
@@ -100,26 +119,9 @@ class SMParser():
 	def clean_text(text):
 		text = scrubadub.clean(text)
 		return re.sub(r'@\S*', "{{USERNAME}}", text).encode('latin1', 'ignore').decode('utf8', 'ignore')
-	
-	def sys_check(self):
-		self.timetype = 1 if platform.system() == 'Windows' else -1
-		self.time_string_opts = {
-			1: lambda ts: ts.strftime("%#I:%M %p"),
-			-1: lambda ts: ts.strftime("%-I:%M %p")
-		}
-		return True
-		
+			
 	def time_string(self, timestamp):
 		return self.time_string_opts[self.time_type](timestamp)
-	
-	def parse_img_ext(self, filepath):
-		if len(Path(media).suffix) == 0:
-			filename, ext_type = media, 'jpg'
-		else:
-			filename, ext_type = media.split(".")
-		if ext_type in self.VALID_TYPES:
-			#TODO????
-			return False
 		
 	def parse_time(self, when):
 		'''in: a form of date-time
@@ -135,22 +137,23 @@ class SMParser():
 		except ValueError:
 			print("ValueError: wasn't able to parse timestamp {0}".format(when))
 			ts = datetime.today()
-		
-		date = ts.date()
-		time = self.time_string(ts)
+		finally:
+			date = ts.date()
+			time = self.time_string(ts)
 		return ts, date, time
 #%%	    
 @dataclass
 class Media():
 	fp_src: str
-	fp_out: str
-	date: str
-	time: str
-	comment: str
 	file_type: str
+	Date: str
+	Time: str
+	Path: str
+	Caption: str = ""
+	Likes: str = ""
+	Comments: str = ""
 
-    #Parse Functions
-
+#Parse Functions unique to each platform
 class FBParser(SMParser):
     def __init__(self, person_name, person_alias, zip_path, home_dir=None):
         pass
@@ -158,82 +161,89 @@ class FBParser(SMParser):
 class IGParser(SMParser):
 	def __init__(self, person_name, person_alias, zip_path, home_dir=None):
 		pass
-        
-	def parse_posts(self, parsed_path):
-		#--- PHOTOS
-		print("Parsing Posts")
-		posts_header = ["Date", "Time", "Path", "Caption", "Likes", "Comments"]
-		posts_rows = []
-		media_timestamps = []
-		self.post_counter = 0
+    
+	def parse_comments(self, parsed_path, username):
+		
+		logging.info("Parsing IG comments")
+		data = self.get_json("comments", "post_comments")
+		comments_header = ["Date", "Time", "Content"]
+		#for section in data:
+		for comment in data.comments_media_comments:
+			c0 = comment.string_list_data[0]
+			ts = c0["timestamp"]
+			comment_value = c0.value
+			author = comment.title
+			timestamp, date, time = self.parse_time(ts)
+			
+			if not self.in_date_range_range(timestamp): continue
+			content = self.clean_text(comment_value)
+			#TODO: Needs Work!
+			if re.compile(r'^\s*$').match(content): continue
+			row = [date, time, content]
+			#author = comment[2]
+			if author == username:
+				if users_comments_on_own_post[-1][2] == content: continue
+				users_comments_on_own_post.append(row)
+			else:
+				if users_comments_on_other_post[-1][2] == content: continue
+				users_comments_on_other_post.append(row)
+		gen_csv(parsed_path, "users_comments_on_own_post", users_comments_on_own_post)
+		gen_csv(parsed_path, "users_comments_on_other_post", users_comments_on_other_post)
 
+	def parse_follow(self):
+		logging.info("Parsing IG Follow")
+		data = self.get_json('followers_and_following', 'followers')
+		data2 = self.get_json('followers_and_following', 'following')
+		follow_header = ['Followers', 'Following'],
+		payload = {
+			'Followers': len(data['relationships_followers']), 
+			'Following': len(data2['relationships_following'])}
+		self.genCSV("follow", follow_header, payload)
+
+	def parse_posts(self, parsed_path):
+		logging.info("Parsing IG posts")
+		posts_header = ["Date", "Time", "Path", "Caption", "Likes", "Comments"]
+		self.posts_rows = []
+		#--- PHOTOS
 		posts_data = self.get_json("content", "posts_1")
 		#jposts[0].media[0].uri, .creation_timestamp, .title
-		print("Parsing posts")
-		valid_posts = [p for p in posts_data if self.in_date_range(p.timestamp)]
+		valid_posts = [p for p in posts_data if self.in_date_range(p.creation_timestamp)]
 		for i, post in enumerate(valid_posts):
-			for j, photo in post.media:
-				outpath = self.outbox_path / "media" / f'Post{i}' / f'Photo{chr(97+j)}'
-				ts, date, time = parse_time(post.creation_timestamp)
+			for j, photo in enumerate(post.media):
 				img_ext = self.parse_ext(photo.uri)
-				ph = Media(photo.uri, outpath, date, time, photo.title, img_ext)
-
-		post_counter, new_rows = self.parse_type(posts_data, post_counter, months_back, last_date, media_timestamps)
-		media_parsed.extend(new_rows)
+				outpath = self.media_path / f'Post{i}' / f'Photo{chr(97+j)}'
+				ts, date, time = self.parse_time(post.creation_timestamp)
+				ph = Media(photo.uri, img_ext, date, time, outpath, post.title)
+				self.posts_media.append(ph)
 
 		#--- STORIES
+		logging.info("Parsing IG stories")
 		stories_data = self.get_json("content", "stories")
 		#sposts.ig_stories[0].uri
-		#story_list = stories_data["ig_stories"]
-		print("Parsing stories")
-		post_counter, new_rows = self.parse_type(story_list, post_counter, media_timestamps, True)
-		media_parsed.extend(new_rows)
+		valid_stories = [s for s in stories_data.ig_stories if self.in_date_range(s.creation_timestamp)]
+		for i, story in enumerate(valid_stories):
+				img_ext = self.parse_ext(story.uri)
+				outpath = self.media_path / f'Story{i}' / f'Photo{chr(97+i)}'
+				ts, date, time = self.parse_time(story.creation_timestamp)
+				ph = Media(story.uri, img_ext, date, time, outpath, story.title)
+				self.posts_media.append(ph)
 
 		#--- PROFILE PICS
+		logging.info("Parsing IG profile pic")
 		profile_pic_data = self.get_json("content", "profile_photos")
 		#prof.ig_profile_picture[0].uri
-		#profile_pic_list = profile_pic_data["ig_profile_picture"]
-		print("parsing profile pic")
-		post_counter, new_rows = self.parse_type(profile_pic_list, post_counter, media_timestamps)
-		media_parsed.extend(new_rows)
-
-		self.gen_csv("posts", posts_header, media_parsed)
+		for i, photo in enumerate(profile_pic_data.ig_profile_picture):
+			img_ext = self.parse_ext(photo.uri)
+			outpath = self.media_path / f'Profile' / f'Photo{chr(97+i)}'
+			ts, date, time = self.parse_time(photo.creation_timestamp)
+			ph = Media(photo.uri, img_ext, date, time, outpath, photo.title)
+			self.posts_media.append(ph)
+		logging.debug(self.posts_media)
+		posts_row_data = [r.__dict__ for r in self.posts_media]
+		self.gen_csv("posts", posts_header, posts_row_data)
 		return None
 
-	#TODO: Refactor This!
-	def parse_type(self, post_lst, post_counter, timestamps_for_media_parsed, story=False):
-		tracker = {}  # timestamp -> (post_num, num_pics)
-		parsed_rows = []
-		for i, post in enumerate(post_lst, post_counter):
-			print(f"Post {i} of {len(post_lst)}", end="\r")
-			timestamp, date, time = get_timestamp(post.get("creation_timestamp"))
-			if self.in_date_range(timestamp):
-				caption = post.get("title","")
-			'''if timestamp in tracker:  #TODO: PJS Add this back later?
-				post_num, num_pics = tracker[timestamp]
-				if add_media(media["path"], tracker, timestamp, post_num, num_pics + 1, story):
-					tracker[timestamp] = (post_num, num_pics + 1)
-			else:'''
-			post_num = i    #post_counter
-			for num_pics, pic in enumerate(post.get("media",[]), 1):
-				
-				if self.add_media(pic["uri"], tracker, timestamp, post_num, num_pics, story):
-					#tracker[timestamp] = (post_num, num_pics)
-					parsed_rows.append([date, time, os.path.join("stories" if story else "media", str(post_num)), clean_text(caption), "", ""])
-					timestamps_for_media_parsed.append(timestamp)
-		return post_counter+len(post_lst), parsed_rows
 
-	def add_media(self, media, tracker, timestamp, post_num, num_pics, story):
-	
-		media_src = self.zip_root / media
-		media_dest = self.outbox_path / "stories" if story else "media" / str(post_num)
-		if not media_dest.is_dir(): media_dest.mkdir(parents=True, exist_ok=True)
-
-		img = blur_faces(media_src)
-		if img is None: return False
-		cv2.imwrite(media_dest / f"{chr(97+num_pics)}.{ext_type}", img)
-		tracker[timestamp] = (post_num, num_pics + 1)
-		return True
 
 class TTParser(SMParser):
     def __init__(self, person_name, person_alias, zip_path, home_dir=None):
