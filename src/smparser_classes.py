@@ -6,6 +6,7 @@ import csv
 from dataclasses import dataclass
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
+import imghdr
 import json
 import logging
 from pathlib import Path
@@ -32,6 +33,7 @@ class SMParser():
 		self.person_name = person_name
 		self.person_alias = person_alias    #TODO: need to create UUID? Answer: No, just allow for User to Input
 		self.ask_date()
+		self.sys_check()
 
 		self.home_path = Path(home_dir) if home_dir is not None else Path(zip_path).parent
 		self.temp_path = self.home_path / 'TEMP'
@@ -94,14 +96,56 @@ class SMParser():
 				csv_writer.writerow(entry)
 		return None
     
+	@staticmethod
 	def clean_text(text):
 		text = scrubadub.clean(text)
 		return re.sub(r'@\S*', "{{USERNAME}}", text).encode('latin1', 'ignore').decode('utf8', 'ignore')
+	
+	def sys_check(self):
+		self.timetype = 1 if platform.system() == 'Windows' else -1
+		self.time_string_opts = {
+			1: lambda ts: ts.strftime("%#I:%M %p"),
+			-1: lambda ts: ts.strftime("%-I:%M %p")
+		}
+		return True
+		
+	def time_string(self, timestamp):
+		return self.time_string_opts[self.time_type](timestamp)
+	
+	def parse_img_ext(self, filepath):
+		if len(Path(media).suffix) == 0:
+			filename, ext_type = media, 'jpg'
+		else:
+			filename, ext_type = media.split(".")
+		if ext_type in self.VALID_TYPES:
+			#TODO????
+			return False
+		
+	def parse_time(self, when):
+		'''in: a form of date-time
+		out: timestamp, time, date'''
+		try:
+			if when is None:
+				ts = datetime.today()
+			elif type(when) == int: 
+				ts = datetime.fromtimestamp(when)
+			else:
+				when = when.split("+", 1)[0]
+				ts = datetime.strptime(when, '%Y-%m-%dT%H:%M:%S')
+		except ValueError:
+			print("ValueError: wasn't able to parse timestamp {0}".format(when))
+			ts = datetime.today()
+		
+		date = ts.date()
+		time = self.time_string(ts)
+		return ts, date, time
 #%%	    
 @dataclass
 class Media():
 	fp_src: str
 	fp_out: str
+	date: str
+	time: str
 	comment: str
 	file_type: str
 
@@ -124,13 +168,15 @@ class IGParser(SMParser):
 		self.post_counter = 0
 
 		posts_data = self.get_json("content", "posts_1")
-		#jposts[0].media[0].uri
-		print("Parsing photos")
-		#??timestamp, date, time = get_timestamp(post.get("creation_timestamp"))
+		#jposts[0].media[0].uri, .creation_timestamp, .title
+		print("Parsing posts")
 		valid_posts = [p for p in posts_data if self.in_date_range(p.timestamp)]
-		for post in posts_data:
-			this_row = dict.fromkeys(posts_header)
-			#this_post 
+		for i, post in enumerate(valid_posts):
+			for j, photo in post.media:
+				outpath = self.outbox_path / "media" / f'Post{i}' / f'Photo{chr(97+j)}'
+				ts, date, time = parse_time(post.creation_timestamp)
+				img_ext = self.parse_ext(photo.uri)
+				ph = Media(photo.uri, outpath, date, time, photo.title, img_ext)
 
 		post_counter, new_rows = self.parse_type(posts_data, post_counter, months_back, last_date, media_timestamps)
 		media_parsed.extend(new_rows)
@@ -178,12 +224,7 @@ class IGParser(SMParser):
 		return post_counter+len(post_lst), parsed_rows
 
 	def add_media(self, media, tracker, timestamp, post_num, num_pics, story):
-		if len(Path(media).suffix) == 0:
-			filename, ext_type = media, 'jpg'
-		else:
-			filename, ext_type = media.split(".")
-		if ext_type in self.VALID_TYPES:
-			return False
+	
 		media_src = self.zip_root / media
 		media_dest = self.outbox_path / "stories" if story else "media" / str(post_num)
 		if not media_dest.is_dir(): media_dest.mkdir(parents=True, exist_ok=True)
