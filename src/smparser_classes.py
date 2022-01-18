@@ -107,7 +107,7 @@ class SMParser():
 	def genCSV(self, csv_name, header, data):
 		'''Generate CSV files from data (a list of dicts)'''
 		logging.debug(f'Creating the file {csv_name}')
-		csv_out = self.outbox_path / csv_name + ".csv"
+		csv_out = self.outbox_path / f'{csv_name}.csv'
 		with open(csv_out, "w+", encoding='utf-8') as csv_file:
 			csv_writer = csv.DictWriter(csv_file, fieldnames=header, extrasaction='ignore')
 			csv_writer.writeheader()
@@ -162,6 +162,12 @@ class IGParser(SMParser):
 	def __init__(self, person_name, person_alias, zip_path, home_dir=None):
 		pass
     
+    def parse_profile_metadata(self):
+	    logging.info('Parsing profile metadata')
+	    data = self.get_json('account_information','personal_information')
+	    self.username = data.profile_user[0].string_map_data.Username.value
+		return None
+	
 	def parse_comments(self, parsed_path, username):
 		
 		logging.info("Parsing IG comments")
