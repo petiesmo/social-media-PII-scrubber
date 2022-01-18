@@ -14,9 +14,9 @@ import re
 from types import SimpleNamespace
 import zipfile
 
-#import cv2
-#import face_recognition
-#import scrubadub
+import cv2
+import face_recognition
+import scrubadub
 #import pysimplegui as sg
 #%%
 class SMParser():
@@ -60,7 +60,7 @@ class SMParser():
 	def ask_date(self):
 		'''TODO: Launch a date picker with pysimplegui'''
 		self.months_back = 24
-		self.last_time = date.today()
+		self.last_time = datetime.today()
 		self.first_time = self.last_time - relativedelta(months=self.months_back)
 		return None
         
@@ -85,12 +85,12 @@ class SMParser():
 	def blur_faces(self, img_data):
 		'''Detect the faces in an image & apply blur effect over each'''
 		#img = cv2.imread(img_path)
-		faces = face_recognition.face_locations(img)
-		logging.debug(f'Blurring {len(faces)} faces for image at location: {img_path}')
+		faces = face_recognition.face_locations(img_data)
+		logging.debug(f'Blurring {len(faces)} faces')
 		for (top, right, bottom, left) in faces:
-			face_image = img[top:bottom, left:right]
-			img[top:bottom, left:right] = cv2.GaussianBlur(face_image, (99, 99), 30)
-		return img
+			face_image = img_data[top:bottom, left:right]
+			img_data[top:bottom, left:right] = cv2.GaussianBlur(face_image, (99, 99), 30)
+		return img_data
 
 	def scrub_and_save_media(self, media_list):
 		'''Cycle through all media, anonymizing each by blurring faces'''
@@ -101,7 +101,6 @@ class SMParser():
 			if img is None: return False
 			if not ph.Path.parent.is_dir(): ph.Path.parent.mkdir(parents=True, exist_ok=True)
 			cv2.imwrite(ph.Path, img)
-			
 		return True
 
 	def genCSV(self, csv_name, header, data):
@@ -121,7 +120,7 @@ class SMParser():
 		return re.sub(r'@\S*', "{{USERNAME}}", text).encode('latin1', 'ignore').decode('utf8', 'ignore')
 			
 	def time_string(self, timestamp):
-		return self.time_string_opts[self.time_type](timestamp)
+		return self.time_string_opts[self.timetype](timestamp)
 		
 	def parse_time(self, when):
 		'''in: a form of date-time
@@ -159,54 +158,54 @@ class FBParser(SMParser):
         pass
         
 class IGParser(SMParser):
-	def __init__(self, person_name, person_alias, zip_path, home_dir=None):
-		pass
+	'''Social Media Parser class for Instagram, v2 Schema'''
+	#def __init__(self, person_name, person_alias, zip_path, home_dir=None):
+		#pass
     
-    def parse_profile_metadata(self):
-	    logging.info('Parsing profile metadata')
-	    data = self.get_json('account_information','personal_information')
-	    self.username = data.profile_user[0].string_map_data.Username.value
+	def parse_profile_metadata(self):
+		logging.info('Parsing IG profile metadata')
+		data = self.get_json('account_information','personal_information')
+		self.username = data.profile_user[0].string_map_data.Username.value
 		return None
 	
-	def parse_comments(self, parsed_path, username):
-		
+	def parse_comments(self):
 		logging.info("Parsing IG comments")
 		data = self.get_json("comments", "post_comments")
 		comments_header = ["Date", "Time", "Content"]
-		#for section in data:
+		users_comments_on_own_post = []
+		users_comments_on_other_post = []
+
 		for comment in data.comments_media_comments:
 			c0 = comment.string_list_data[0]
-			ts = c0["timestamp"]
+			ts = c0.timestamp
 			comment_value = c0.value
 			author = comment.title
 			timestamp, date, time = self.parse_time(ts)
 			
-			if not self.in_date_range_range(timestamp): continue
+			if not self.in_date_range(timestamp): continue
 			content = self.clean_text(comment_value)
-			#TODO: Needs Work!
 			if re.compile(r'^\s*$').match(content): continue
-			row = [date, time, content]
-			#author = comment[2]
-			if author == username:
-				if users_comments_on_own_post[-1][2] == content: continue
+			row = {"Date":date, "Time":time, "Content":content}
+			if author == self.username:
+				#if users_comments_on_own_post[-1][2] == content: continue
 				users_comments_on_own_post.append(row)
 			else:
-				if users_comments_on_other_post[-1][2] == content: continue
+				#if users_comments_on_other_post[-1][2] == content: continue
 				users_comments_on_other_post.append(row)
-		gen_csv(parsed_path, "users_comments_on_own_post", users_comments_on_own_post)
-		gen_csv(parsed_path, "users_comments_on_other_post", users_comments_on_other_post)
+		self.genCSV("users_comments_on_own_post", comments_header, users_comments_on_own_post)
+		self.genCSV("users_comments_on_other_post", comments_header, users_comments_on_other_post)
 
 	def parse_follow(self):
 		logging.info("Parsing IG Follow")
 		data = self.get_json('followers_and_following', 'followers')
 		data2 = self.get_json('followers_and_following', 'following')
-		follow_header = ['Followers', 'Following'],
-		payload = {
-			'Followers': len(data['relationships_followers']), 
-			'Following': len(data2['relationships_following'])}
+		follow_header = ['Followers', 'Following']
+		payload = [
+			{'Followers': len(data.relationships_followers), 
+			'Following': len(data2.relationships_following)}]
 		self.genCSV("follow", follow_header, payload)
 
-	def parse_posts(self, parsed_path):
+	def parse_posts(self):
 		logging.info("Parsing IG posts")
 		posts_header = ["Date", "Time", "Path", "Caption", "Likes", "Comments"]
 		self.posts_rows = []
@@ -246,10 +245,16 @@ class IGParser(SMParser):
 			self.posts_media.append(ph)
 		logging.debug(self.posts_media)
 		posts_row_data = [r.__dict__ for r in self.posts_media]
-		self.gen_csv("posts", posts_header, posts_row_data)
+		self.genCSV("posts", posts_header, posts_row_data)
 		return None
 
-
+	def parse_IG_data(self):
+		self.parse_profile_metadata()
+		self.parse_follow()
+		self.parse_comments()
+		self.parse_posts()
+		if input('Save images?') == 'Y':
+			self.scrub_and_save_media(self.posts_media)
 
 class TTParser(SMParser):
     def __init__(self, person_name, person_alias, zip_path, home_dir=None):
@@ -258,3 +263,11 @@ class TTParser(SMParser):
 class YTParser(SMParser):
     def __init__(self, person_name, person_alias, zip_path, home_dir=None):
         pass    
+#%%
+def main():
+	zp = r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\inbox\instagram_test1.zip'
+	IG = IGParser('Meg Nesi', 'MN', zp)
+	IG.parse_IG_data()
+
+if __name__ == "__main__":
+	main()
