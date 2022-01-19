@@ -79,7 +79,7 @@ class SMParser():
 		return image_path.read_bytes()
 
 	def parse_img_ext(self, mediafp):
-		ext_type = mediafp.suffix 
+		ext_type = mediafp.suffix if hasattr(mediafp, 'suffix') else '' 
 		return ext_type if ext_type in self.VALID_TYPES else False
 			
 	def blur_faces(self, img_data):
@@ -95,8 +95,8 @@ class SMParser():
 	def scrub_and_save_media(self, media_list):
 		'''Cycle through all media, anonymizing each by blurring faces'''
 		for ph in media_list:
-			photo_bytes = ph.fpsrc.read_bytes()
-			photo_data = cv2.imread(photo_bytes)
+			#photo_bytes = ph.fp_src.read_bytes()
+			photo_data = cv2.imread(ph.fp_src)	#photo_bytes)
 			img = self.blur_faces(photo_data)
 			if img is None: return False
 			if not ph.Path.parent.is_dir(): ph.Path.parent.mkdir(parents=True, exist_ok=True)
@@ -143,11 +143,11 @@ class SMParser():
 #%%	    
 @dataclass
 class Media():
-	fp_src: str
+	fp_src: Path
 	file_type: str
 	Date: str
 	Time: str
-	Path: str
+	Path: Path
 	Caption: str = ""
 	Likes: str = ""
 	Comments: str = ""
@@ -205,31 +205,27 @@ class IGParser(SMParser):
 			'Following': len(data2.relationships_following)}]
 		self.genCSV("follow", follow_header, payload)
 
-	def parse_ig_post(self, post):
-		if hasattr(post, 'creation_timestamp'):
-			pts = post.creation_timestamp
-			comment = post.title
-		elif hasattr(post.media[0], 'creation_timestamp'):
-			pts = post.media[0].creation_timestamp
-		else:
-			return True
-		return self.in_date_range(datetime.fromtimestamp(pts))
-
 	def parse_posts(self):
 		logging.info("Parsing IG posts")
 		posts_header = ["Date", "Time", "Path", "Caption", "Likes", "Comments"]
-		self.posts_rows = []
+		self.posts_media = []
 		#--- PHOTOS
 		posts_data = self.get_json("content", "posts_1")
 		#jposts[0].media[0].uri, .creation_timestamp, .title
-		valid_posts = [p for p in posts_data if self.in_date_range(datetime.fromtimestamp(p.creation_timestamp))]
-		for i, post in enumerate(valid_posts):
+		#valid_posts = [p for p in posts_data if self.in_date_range(datetime.fromtimestamp(p.creation_timestamp))]
+		for i, post in enumerate(posts_data):
+			ts = post.creation_timestamp if hasattr(post, 'creation_timestamp') else None
+			comment = post.title if hasattr(post, 'title') else ""
 			for j, photo in enumerate(post.media):
-				img_ext = self.parse_ext(photo.uri)
-				outpath = self.media_path / f'Post{i}' / f'Photo{chr(97+j)}'
-				ts, date, time = self.parse_time(post.creation_timestamp)
-				ph = Media(photo.uri, img_ext, date, time, outpath, post.title)
-				self.posts_media.append(ph)
+				ts = ts if ts is not None else photo.creation_timestamp
+				pts, date, time = self.parse_time(ts)
+				if self.in_date_range(pts):
+					comment += photo.title
+					img_fp = self.zip_root / photo.uri
+					img_ext = self.parse_img_ext(img_fp)
+					outpath = self.media_path / f'Post{i}' / f'Photo{chr(97+j)}'
+					ph = Media(img_fp, img_ext, date, time, outpath, comment)
+					self.posts_media.append(ph)
 
 		#--- STORIES
 		logging.info("Parsing IG stories")
@@ -237,10 +233,11 @@ class IGParser(SMParser):
 		#sposts.ig_stories[0].uri
 		valid_stories = [s for s in stories_data.ig_stories if self.in_date_range(datetime.fromtimestamp(s.creation_timestamp))]
 		for i, story in enumerate(valid_stories):
-				img_ext = self.parse_ext(story.uri)
+				img_fp = self.zip_root / story.uri
+				img_ext = self.parse_img_ext(img_fp)
 				outpath = self.media_path / f'Story{i}' / f'Photo{chr(97+i)}'
 				ts, date, time = self.parse_time(story.creation_timestamp)
-				ph = Media(story.uri, img_ext, date, time, outpath, story.title)
+				ph = Media(img_fp, img_ext, date, time, outpath, story.title)
 				self.posts_media.append(ph)
 
 		#--- PROFILE PICS
@@ -248,10 +245,11 @@ class IGParser(SMParser):
 		profile_pic_data = self.get_json("content", "profile_photos")
 		#prof.ig_profile_picture[0].uri
 		for i, photo in enumerate(profile_pic_data.ig_profile_picture):
-			img_ext = self.parse_ext(photo.uri)
+			img_fp = self.zip_root / photo.uri
+			img_ext = self.parse_img_ext(img_fp)
 			outpath = self.media_path / f'Profile' / f'Photo{chr(97+i)}'
 			ts, date, time = self.parse_time(photo.creation_timestamp)
-			ph = Media(photo.uri, img_ext, date, time, outpath, photo.title)
+			ph = Media(img_fp, img_ext, date, time, outpath, photo.title)
 			self.posts_media.append(ph)
 		logging.debug(self.posts_media)
 		posts_row_data = [r.__dict__ for r in self.posts_media]
