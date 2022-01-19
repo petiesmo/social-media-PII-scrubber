@@ -205,6 +205,15 @@ class IGParser(SMParser):
 			'Following': len(data2.relationships_following)}]
 		self.genCSV("follow", follow_header, payload)
 
+	def valid_post(self, post):
+		if hasattr(post, 'creation_timestamp'):
+			pts = post.creation_timestamp
+		elif hasattr(post.media[0], 'creation_timestamp'):
+			pts = post.media[0].creation_timestamp
+		else:
+			return True
+		return self.in_date_range(datetime.fromtimestamp(pts))
+
 	def parse_posts(self):
 		logging.info("Parsing IG posts")
 		posts_header = ["Date", "Time", "Path", "Caption", "Likes", "Comments"]
@@ -212,7 +221,7 @@ class IGParser(SMParser):
 		#--- PHOTOS
 		posts_data = self.get_json("content", "posts_1")
 		#jposts[0].media[0].uri, .creation_timestamp, .title
-		valid_posts = [p for p in posts_data if self.in_date_range(p.creation_timestamp)]
+		valid_posts = [p for p in posts_data if self.in_date_range(datetime.fromtimestamp(p.creation_timestamp))]
 		for i, post in enumerate(valid_posts):
 			for j, photo in enumerate(post.media):
 				img_ext = self.parse_ext(photo.uri)
@@ -225,7 +234,7 @@ class IGParser(SMParser):
 		logging.info("Parsing IG stories")
 		stories_data = self.get_json("content", "stories")
 		#sposts.ig_stories[0].uri
-		valid_stories = [s for s in stories_data.ig_stories if self.in_date_range(s.creation_timestamp)]
+		valid_stories = [s for s in stories_data.ig_stories if self.in_date_range(datetime.fromtimestamp(s.creation_timestamp))]
 		for i, story in enumerate(valid_stories):
 				img_ext = self.parse_ext(story.uri)
 				outpath = self.media_path / f'Story{i}' / f'Photo{chr(97+i)}'
