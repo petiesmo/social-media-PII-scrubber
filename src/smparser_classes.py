@@ -205,9 +205,10 @@ class IGParser(SMParser):
 			'Following': len(data2.relationships_following)}]
 		self.genCSV("follow", follow_header, payload)
 
-	def valid_post(self, post):
+	def parse_ig_post(self, post):
 		if hasattr(post, 'creation_timestamp'):
 			pts = post.creation_timestamp
+			comment = post.title
 		elif hasattr(post.media[0], 'creation_timestamp'):
 			pts = post.media[0].creation_timestamp
 		else:
