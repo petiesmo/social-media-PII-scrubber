@@ -5,7 +5,7 @@ import csv
 from dataclasses import dataclass
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
-import imghdr
+from io import BytesIO
 import json
 import logging
 from pathlib import Path
@@ -18,6 +18,8 @@ import cv2
 import face_recognition
 import scrubadub
 #import pysimplegui as sg
+logfile = ''
+logging.basicConfig(format='%(asctime)s|%(levelname)s:%(message)s', filename=logfile, level=logging.INFO)
 #%%
 class SMParser():
 	def __init__(self, person_name, person_alias, zip_path, home_dir=None):
@@ -95,8 +97,8 @@ class SMParser():
 	def scrub_and_save_media(self, media_list):
 		'''Cycle through all media, anonymizing each by blurring faces'''
 		for ph in media_list:
-			#photo_bytes = ph.fp_src.read_bytes()
-			photo_data = cv2.imread(ph.fp_src)	#photo_bytes)
+			photo_bytes = ph.fp_src.read_bytes()
+			photo_data = cv2.imread(BytesIO(photo_bytes))
 			img = self.blur_faces(photo_data)
 			if img is None: return False
 			if not ph.Path.parent.is_dir(): ph.Path.parent.mkdir(parents=True, exist_ok=True)
@@ -276,6 +278,22 @@ def main():
 	zp = r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\inbox\instagram_test1.zip'
 	IG = IGParser('Meg Nesi', 'MN', zp)
 	IG.parse_IG_data()
+
+def input_window():
+	person_alias
+	date_picker
+	months_back
+	data_folder
+	
+def gui_layout():
+	fields = [
+		[sg.T('Alias:',width=20),sg.I(label='person_alias],
+		[],
+		[],
+		[],
+		[sg.B('Parse Data')]
+		]
+	
 
 if __name__ == "__main__":
 	main()
