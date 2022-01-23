@@ -5,7 +5,6 @@ import csv
 from dataclasses import dataclass
 from datetime import datetime, date, timedelta
 from dateutil.relativedelta import relativedelta
-from io import BytesIO
 import json
 import logging
 from pathlib import Path
@@ -14,12 +13,12 @@ import re
 from types import SimpleNamespace
 import zipfile
 
-import cv2
 import face_recognition
-import scrubadub
+import numpy as np
+from PIL import Image, ImageFilter
 #import pysimplegui as sg
-logfile = ''
-logging.basicConfig(format='%(asctime)s|%(levelname)s:%(message)s', filename=logfile, level=logging.INFO)
+import scrubadub
+
 #%%
 class SMParser():
 	def __init__(self, person_name, person_alias, zip_path, home_dir=None):
@@ -32,8 +31,8 @@ class SMParser():
 		self.sys_check()
 
 		self.home_path = Path(home_dir) if home_dir is not None else Path(zip_path).parent
-		self.temp_path = self.home_path / 'TEMP'
-		self.temp_path.mkdir(parents=True, exist_ok=True)
+		#self.temp_path = self.home_path / 'TEMP'
+		#self.temp_path.mkdir(parents=True, exist_ok=True)
 		self.outbox_path = self.home_path / 'outbox'
 		self.media_path = self.outbox_path / 'media'
 		self.media_path.mkdir(parents=True, exist_ok=True)
@@ -46,17 +45,6 @@ class SMParser():
 			-1: lambda ts: ts.strftime("%-I:%M %p")
 		}
 		return True
-
-    #Unip and locate files
-	def unzip(self):
-		'''This code will take advantage of the zipfile context managers
-			and open files WITHOUT extracting the entire archive'''
-		pass
-		return None
-        
-	def detect_files(self):
-		test = all([f.isfile() for f in self.json_files])
-		return test
 
     #Utility Functions
 	def ask_date(self):
@@ -82,34 +70,36 @@ class SMParser():
 
 	def parse_img_ext(self, mediafp):
 		ext_type = mediafp.suffix if hasattr(mediafp, 'suffix') else '' 
-		return ext_type if ext_type in self.VALID_TYPES else False
-			
-	def blur_faces(self, img_data):
-		'''Detect the faces in an image & apply blur effect over each'''
-		#img = cv2.imread(img_path)
-		faces = face_recognition.face_locations(img_data)
-		logging.debug(f'Blurring {len(faces)} faces')
-		for (top, right, bottom, left) in faces:
-			face_image = img_data[top:bottom, left:right]
-			img_data[top:bottom, left:right] = cv2.GaussianBlur(face_image, (99, 99), 30)
-		return img_data
+		return ext_type if ext_type in self.VALID_TYPES else None
+
+	def blur_faces(self, img):
+		faces = face_recognition.face_locations(np.array(img))
+		face_boxes = [(d,a,b,c) for (a,b,c,d) in faces]
+		for face in face_boxes:
+			crop_img = img.crop(face)
+			# Use GaussianBlur to blur the face. 
+			blur_image = crop_img.filter(ImageFilter.GaussianBlur(radius=10))
+			img.paste(blur_image, face)
+		return img
 
 	def scrub_and_save_media(self, media_list):
 		'''Cycle through all media, anonymizing each by blurring faces'''
+		#with self.zip_file as zf:
 		for ph in media_list:
-			photo_bytes = ph.fp_src.read_bytes()
-			photo_data = cv2.imread(BytesIO(photo_bytes))
-			img = self.blur_faces(photo_data)
+			zph = self.zip_file.NameToInfo.get(str(ph.fp_src), 'huh?')
+			with self.zip_file.open(zph) as zip_img:
+				img_data = Image.open(zip_img)
+				img = self.blur_faces(img_data)
 			if img is None: return False
 			if not ph.Path.parent.is_dir(): ph.Path.parent.mkdir(parents=True, exist_ok=True)
-			cv2.imwrite(ph.Path, img)
+			img.save(ph.Path)
 		return True
 
 	def genCSV(self, csv_name, header, data):
 		'''Generate CSV files from data (a list of dicts)'''
 		logging.debug(f'Creating the file {csv_name}')
 		csv_out = self.outbox_path / f'{csv_name}.csv'
-		with open(csv_out, "w+", encoding='utf-8') as csv_file:
+		with open(csv_out, "w+", encoding='utf-8', newline='') as csv_file:
 			csv_writer = csv.DictWriter(csv_file, fieldnames=header, extrasaction='ignore')
 			csv_writer.writeheader()
 			for entry in data:
@@ -145,7 +135,7 @@ class SMParser():
 #%%	    
 @dataclass
 class Media():
-	fp_src: Path
+	fp_src: str
 	file_type: str
 	Date: str
 	Time: str
@@ -223,11 +213,12 @@ class IGParser(SMParser):
 				pts, date, time = self.parse_time(ts)
 				if self.in_date_range(pts):
 					comment += photo.title
-					img_fp = self.zip_root / photo.uri
-					img_ext = self.parse_img_ext(img_fp)
-					outpath = self.media_path / f'Post{i}' / f'Photo{chr(97+j)}'
-					ph = Media(img_fp, img_ext, date, time, outpath, comment)
-					self.posts_media.append(ph)
+					img_fp = photo.uri
+					img_ext = self.parse_img_ext(Path(img_fp))
+					if img_ext is not None:
+						outpath = self.media_path / f'Post{i}' / f'Photo{chr(97+j)}{img_ext}'
+						ph = Media(img_fp, img_ext, date, time, outpath, comment)
+						self.posts_media.append(ph)
 
 		#--- STORIES
 		logging.info("Parsing IG stories")
@@ -235,10 +226,11 @@ class IGParser(SMParser):
 		#sposts.ig_stories[0].uri
 		valid_stories = [s for s in stories_data.ig_stories if self.in_date_range(datetime.fromtimestamp(s.creation_timestamp))]
 		for i, story in enumerate(valid_stories):
-				img_fp = self.zip_root / story.uri
-				img_ext = self.parse_img_ext(img_fp)
-				outpath = self.media_path / f'Story{i}' / f'Photo{chr(97+i)}'
-				ts, date, time = self.parse_time(story.creation_timestamp)
+			img_fp = story.uri
+			ts, date, time = self.parse_time(story.creation_timestamp)
+			img_ext = self.parse_img_ext(Path(img_fp))
+			if self.in_date_range(ts) and img_ext is not None:
+				outpath = self.media_path / f'Story{i}' / f'Photo{chr(97+i)}{img_ext}'
 				ph = Media(img_fp, img_ext, date, time, outpath, story.title)
 				self.posts_media.append(ph)
 
@@ -247,9 +239,9 @@ class IGParser(SMParser):
 		profile_pic_data = self.get_json("content", "profile_photos")
 		#prof.ig_profile_picture[0].uri
 		for i, photo in enumerate(profile_pic_data.ig_profile_picture):
-			img_fp = self.zip_root / photo.uri
-			img_ext = self.parse_img_ext(img_fp)
-			outpath = self.media_path / f'Profile' / f'Photo{chr(97+i)}'
+			img_fp = photo.uri
+			img_ext = self.parse_img_ext(Path(img_fp))
+			outpath = self.media_path / f'Profile' / f'Photo{chr(97+i)}{img_ext}'
 			ts, date, time = self.parse_time(photo.creation_timestamp)
 			ph = Media(img_fp, img_ext, date, time, outpath, photo.title)
 			self.posts_media.append(ph)
@@ -275,11 +267,14 @@ class YTParser(SMParser):
         pass    
 #%%
 def main():
+	#logfile = ''
+	#logging.basicConfig(format='%(asctime)s|%(levelname)s:%(message)s', filename=logfile, level=logging.INFO)
+
 	zp = r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\inbox\instagram_test1.zip'
 	IG = IGParser('Meg Nesi', 'MN', zp)
 	IG.parse_IG_data()
 
-def input_window():
+""" def input_window():
 	person_alias
 	date_picker
 	months_back
@@ -292,7 +287,7 @@ def gui_layout():
 		[],
 		[],
 		[sg.B('Parse Data')]
-		]
+		] """
 	
 
 if __name__ == "__main__":
