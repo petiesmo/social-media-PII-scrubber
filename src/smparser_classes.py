@@ -63,10 +63,13 @@ class SMParser():
 		json_path = self.zip_root / folder / f"{filename}.json"
 		return json.loads(json_path.read_text(), object_hook=lambda d:SimpleNamespace(**d))
     
-	def get_image(self, folder, filename):
+	def get_image(self, rel_fp):
 		'''File path relative to ziproot'''
-		image_path = self.zip_root / folder / filename
-		return image_path.read_bytes()
+		zph = self.zip_file.NameToInfo.get(rel_fp, None)
+		if zph is None: raise ValueError
+		with self.zip_file.open(zph) as zip_img:
+			img_data = Image.open(zip_img)
+		return img_data
 
 	def parse_img_ext(self, mediafp):
 		ext_type = mediafp.suffix if hasattr(mediafp, 'suffix') else '' 
@@ -84,15 +87,17 @@ class SMParser():
 
 	def scrub_and_save_media(self, media_list):
 		'''Cycle through all media, anonymizing each by blurring faces'''
-		#with self.zip_file as zf:
-		for ph in media_list:
-			zph = self.zip_file.NameToInfo.get(str(ph.fp_src), 'huh?')
-			with self.zip_file.open(zph) as zip_img:
-				img_data = Image.open(zip_img)
+		for photo in media_list:
+			try:
+				img_data = self.get_image(photo.fp_src)
 				img = self.blur_faces(img_data)
-			if img is None: return False
-			if not ph.Path.parent.is_dir(): ph.Path.parent.mkdir(parents=True, exist_ok=True)
-			img.save(ph.Path)
+				if img is None: raise ValueError
+				if not ph.Path.parent.is_dir(): ph.Path.parent.mkdir(parents=True, exist_ok=True)
+				img.save(ph.Path)
+			except:
+				logging.info(f'Issue with {ph.fp_src}. Skipped')
+				continue
+		logging.info('Media scrub complete')
 		return True
 
 	def genCSV(self, csv_name, header, data):
@@ -211,14 +216,14 @@ class IGParser(SMParser):
 			for j, photo in enumerate(post.media):
 				ts = ts if ts is not None else photo.creation_timestamp
 				pts, date, time = self.parse_time(ts)
-				if self.in_date_range(pts):
-					comment += photo.title
-					img_fp = photo.uri
-					img_ext = self.parse_img_ext(Path(img_fp))
-					if img_ext is not None:
-						outpath = self.media_path / f'Post{i}' / f'Photo{chr(97+j)}{img_ext}'
-						ph = Media(img_fp, img_ext, date, time, outpath, comment)
-						self.posts_media.append(ph)
+				if not self.in_date_range(pts): continue
+				comment += photo.title
+				img_fp = photo.uri
+				img_ext = self.parse_img_ext(Path(img_fp))
+				if img_ext is None: continue
+				outpath = self.media_path / f'Post{i}' / f'Photo{chr(97+j)}{img_ext}'
+				ph = Media(img_fp, img_ext, date, time, outpath, comment)
+				self.posts_media.append(ph)
 
 		#--- STORIES
 		logging.info("Parsing IG stories")
@@ -229,10 +234,10 @@ class IGParser(SMParser):
 			img_fp = story.uri
 			ts, date, time = self.parse_time(story.creation_timestamp)
 			img_ext = self.parse_img_ext(Path(img_fp))
-			if self.in_date_range(ts) and img_ext is not None:
-				outpath = self.media_path / f'Story{i}' / f'Photo{chr(97+i)}{img_ext}'
-				ph = Media(img_fp, img_ext, date, time, outpath, story.title)
-				self.posts_media.append(ph)
+			if not self.in_date_range(ts) or img_ext is None: continue
+			outpath = self.media_path / f'Story{i}' / f'Photo{chr(97+i)}{img_ext}'
+			ph = Media(img_fp, img_ext, date, time, outpath, story.title)
+			self.posts_media.append(ph)
 
 		#--- PROFILE PICS
 		logging.info("Parsing IG profile pic")
@@ -245,6 +250,7 @@ class IGParser(SMParser):
 			ts, date, time = self.parse_time(photo.creation_timestamp)
 			ph = Media(img_fp, img_ext, date, time, outpath, photo.title)
 			self.posts_media.append(ph)
+		#--- Build the csv
 		logging.debug(self.posts_media)
 		posts_row_data = [r.__dict__ for r in self.posts_media]
 		self.genCSV("posts", posts_header, posts_row_data)
