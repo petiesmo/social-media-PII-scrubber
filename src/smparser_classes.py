@@ -64,18 +64,16 @@ class SMParser():
 		return json.loads(json_path.read_text(), object_hook=lambda d:SimpleNamespace(**d))
     
 	def get_image(self, rel_fp):
-		'''File path relative to ziproot'''
-		zph = self.zip_file.NameToInfo.get(rel_fp, None)
-		if zph is None: raise ValueError
-		with self.zip_file.open(zph) as zip_img:
-			img_data = Image.open(zip_img)
-		return img_data
+		'''File path relative to ziproot; Returns np array'''
+
+		return None
 
 	def parse_img_ext(self, mediafp):
 		ext_type = mediafp.suffix if hasattr(mediafp, 'suffix') else '' 
 		return ext_type if ext_type in self.VALID_TYPES else None
 
 	def blur_faces(self, img):
+		'''Receives and returns a PIL Image object'''
 		faces = face_recognition.face_locations(np.array(img))
 		face_boxes = [(d,a,b,c) for (a,b,c,d) in faces]
 		for face in face_boxes:
@@ -87,15 +85,20 @@ class SMParser():
 
 	def scrub_and_save_media(self, media_list):
 		'''Cycle through all media, anonymizing each by blurring faces'''
+		#TODO: Add a Progress Meter!
+		#TODO: Add a 'problems' list
 		for photo in media_list:
 			try:
-				img_data = self.get_image(photo.fp_src)
-				img = self.blur_faces(img_data)
-				if img is None: raise ValueError
-				if not ph.Path.parent.is_dir(): ph.Path.parent.mkdir(parents=True, exist_ok=True)
-				img.save(ph.Path)
+				zph = self.zip_file.NameToInfo.get(photo.fp_src, None)
+				if zph is None: raise ValueError('Could not retrieve photo from zip')
+				with self.zip_file.open(zph) as zip_img:
+					img_data = Image.open(zip_img)
+					blurred_img = self.blur_faces(img_data)
+				if blurred_img is None: raise ValueError('Blurred image not successful')
+				if not photo.Path.parent.is_dir(): photo.Path.parent.mkdir(parents=True, exist_ok=True)
+				blurred_img.save(photo.Path)
 			except:
-				logging.info(f'Issue with {ph.fp_src}. Skipped')
+				logging.info(f'Issue with {photo.fp_src}. Skipped')
 				continue
 		logging.info('Media scrub complete')
 		return True
@@ -273,10 +276,10 @@ class YTParser(SMParser):
         pass    
 #%%
 def main():
-	#logfile = ''
-	#logging.basicConfig(format='%(asctime)s|%(levelname)s:%(message)s', filename=logfile, level=logging.INFO)
+	logfile = r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\inbox\TEMP\parser.log'
+	logging.basicConfig(format='%(asctime)s|%(levelname)s:%(message)s', filename=logfile, level=logging.DEBUG)
 
-	zp = r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\inbox\instagram_test1.zip'
+	zp = r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\inbox\TEMP\instagram_test1.zip'
 	IG = IGParser('Meg Nesi', 'MN', zp)
 	IG.parse_IG_data()
 
@@ -298,3 +301,4 @@ def gui_layout():
 
 if __name__ == "__main__":
 	main()
+# %%
