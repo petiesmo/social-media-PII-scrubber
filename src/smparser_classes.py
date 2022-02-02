@@ -86,10 +86,11 @@ class SMParser():
 		return img
 
 	def scrub_and_save_media(self, media_list):
-		'''Cycle through all media, anonymizing each by blurring faces'''
+		'''Cycle through all Media objects, anonymizing each by blurring faces'''
 		#TODO: Add a Progress Meter!
 		#TODO: Add a 'problems' list
-		for photo in media_list:
+		self.problems = []
+		for i, photo in enumerate(media_list):
 			try:
 				zph = self.zip_file.NameToInfo.get(photo.fp_src, None)
 				if zph is None: raise ValueError('Could not retrieve photo from zip')
@@ -99,10 +100,11 @@ class SMParser():
 				if blurred_img is None: raise ValueError('Blurred image not successful')
 				if not photo.Path.parent.is_dir(): photo.Path.parent.mkdir(parents=True, exist_ok=True)
 				blurred_img.save(photo.Path)
-			except:
-				logging.info(f'Issue with {photo.fp_src}. Skipped')
+			except Exception as e:
+				logging.error(f'Issue with {photo.fp_src}. Skipped')
+				self.problems.append(photo)
 				continue
-		logging.info('Media scrub complete')
+		logging.info('Media scrub complete. {len(media_list)} images processed.')
 		return True
 
 	def genCSV(self, csv_name, header, data):
@@ -137,7 +139,7 @@ class SMParser():
 				ts = datetime.strptime(when, '%Y-%m-%dT%H:%M:%S')
 				#TODO: Change to dateutil.parser.parse
 		except ValueError:
-			print(f"ValueError: wasn't able to parse timestamp {when}")
+			logging.error(f"ValueError: wasn't able to parse timestamp {when}")
 			ts = datetime.today()
 		finally:
 			date = ts.date()
