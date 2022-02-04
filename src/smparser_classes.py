@@ -5,8 +5,6 @@ import csv
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, date, timedelta
-from dateutil.relativedelta import relativedelta
-from dateutil import parser
 import itertools
 import json
 import logging
@@ -16,10 +14,12 @@ import re
 from types import SimpleNamespace
 import zipfile
 
+from dateutil.relativedelta import relativedelta
+import dateparser
 import face_recognition
 import numpy as np
 from PIL import Image, ImageFilter
-#import pysimplegui as sg
+import PySimpleGUI as sg
 import scrubadub
 
 #%%
@@ -86,7 +86,7 @@ class SMParser():
 	def scrub_and_save_media(self, media_list):
 		'''Cycle through all Media objects, anonymizing each by blurring faces'''
 		#TODO: Add a Progress Meter!
-		#TODO: Add a 'problems' list
+		#TODO: Add a 'problems' list?
 		self.problems = []
 		for i, photo in enumerate(media_list):
 			try:
@@ -107,7 +107,7 @@ class SMParser():
 
 	def genCSV(self, csv_name, header, data):
 		'''Generate CSV files from data (a list of dicts)'''
-		logging.debug(f'Creating the file {csv_name}')
+		logging.info(f'Creating the file {csv_name}')
 		csv_out = self.outbox_path / f'{csv_name}.csv'
 		with open(csv_out, "w+", encoding='utf-8', newline='') as csv_file:
 			csv_writer = csv.DictWriter(csv_file, fieldnames=header, extrasaction='ignore')
@@ -230,7 +230,7 @@ class FBParser(SMParser):
 		payload = list()
 		for i, post in enumerate(posts):
 			try:
-				logging.debug(f'Parsing {i} of {len(posts)} updates...')
+				logging.debug(f'Parsing {i} of {len(posts)} FB posts...')
 				caption = list()
 				ts = post.timestamp
 				pts, pdate, ptime = self.parse_time(ts)
@@ -255,7 +255,7 @@ class FBParser(SMParser):
 
 						img_ext = self.parse_img_ext(Path(media_fp))
 						if img_ext is None: continue
-						out_path = self.media_path / 'FB' / f'Post{i}' / f'Photo_{self.ph_num(j)}{img_ext}'
+						out_path = self.media_path / 'FB' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
 						ph = Media(media_fp, img_ext, pdate, ptime, out_path)
 						self.posts_media.append(ph)
 					elif hasattr(att, 'external_context'):
@@ -298,7 +298,7 @@ class FBParser(SMParser):
 		payload = list()
 		for i, post in enumerate(posts):
 			try:
-				logging.debug(f'Parsing {i} of {len(posts)} updates...')
+				logging.debug(f'Parsing {i} of {len(posts)} FB profile updates...')
 				ts = post.timestamp
 				pts, pdate, ptime = self.parse_time(ts)
 				if not self.in_date_range(pts): continue
@@ -326,7 +326,7 @@ class FBParser(SMParser):
 							else:
 								fc.append(f'"{self.clean_text(comment.comment)}"')
 
-					out_path = self.media_path / 'FB' / f'Post{i}' / f'Photo_{self.ph_num(j)}{img_ext}'
+					out_path = self.media_path / 'FB' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
 					ph = Media(media_fp, img_ext, pdate, ptime, out_path)
 					self.posts_media.append(ph)
 					payload.append({'Date': pdate, 'Time': ptime, 
@@ -449,7 +449,7 @@ class IGParser(SMParser):
 				img_fp = photo.uri
 				img_ext = self.parse_img_ext(Path(img_fp))
 				if img_ext is None: continue
-				out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{self.ph_num(j)}{img_ext}'
+				out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
 				ph = Media(img_fp, img_ext, date, time, out_path, comment)
 				self.posts_media.append(ph)
 
@@ -463,7 +463,7 @@ class IGParser(SMParser):
 			ts, date, time = self.parse_time(story.creation_timestamp)
 			img_ext = self.parse_img_ext(Path(img_fp))
 			if not self.in_date_range(ts) or img_ext is None: continue
-			out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{self.ph_num(j)}{img_ext}'
+			out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
 			comment = self.clean_text(story.title)
 			ph = Media(img_fp, img_ext, date, time, out_path, comment)
 			self.posts_media.append(ph)
@@ -475,7 +475,7 @@ class IGParser(SMParser):
 		for i, photo in enumerate(profile_pic_data.ig_profile_picture):
 			img_fp = photo.uri
 			img_ext = self.parse_img_ext(Path(img_fp))
-			out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{self.ph_num(j)}{img_ext}'
+			out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
 			ts, date, time = self.parse_time(photo.creation_timestamp)
 			comment = self.clean_text(photo.title)
 			ph = Media(img_fp, img_ext, date, time, out_path, comment)
@@ -504,44 +504,35 @@ class YTParser(SMParser):
     def __init__(self, person_name, person_alias, zip_path, home_dir=None):
         pass    
 #%%
-def main():
-	#TODO: Launch a date picker with pysimplegui
-	fp_person = Path(r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\inbox\TEMP\Person2')
+def main_test():
+	#For Testing
+	fp_person = Path(r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\inbox\TEMP\Person3')
 	person_name = 'MM'
-	person_alias = 'Volunteer2'
+	person_alias = 'Volunteer3'
 	months_back = 24
 	last_time = datetime.today()
 
 	logfile = fp_person / 'parser.log'
-	logging.basicConfig(format='%(asctime)s|%(levelname)s:%(message)s', filename=logfile, level=logging.DEBUG)
+	logging.basicConfig(format='%(asctime)s|%(levelname)s:%(message)s', filename=logfile, level=logging.DEBUG, encoding='utf-8')
 
-	zp = fp_person / 'Inbox' / 'IG-Instagram-Meg-Nesi.zip'
-	IG = IGParser(person_name, person_alias, zp, home_dir=fp_person, months_back=months_back, last_time=last_time)
+	IGzip = fp_person / 'Inbox' / 'IG-Instagram-Meg-Nesi.zip'
+	FBzip = fp_person / 'Inbox' / 'FB-facebook-MMaron-100010016043358.zip'
+
+	logging.info(f'Person: {person_name}, Alias: {person_alias}')
+	logging.info(f'Last time: {last_time}, Months Back: {months_back}')
+	logging.info(f'IG File: {IGzip}')
+	logging.info(f'FB File: {FBzip}')
+
+	IG = IGParser(person_name, person_alias, IGzip, home_dir=fp_person, months_back=months_back, last_time=last_time)
 	IG.parse_IG_data() 
 	print('IG Parsing complete')
 	
-	zp2 = fp_person / 'Inbox' / 'FB-facebook-MMaron-100010016043358.zip'
-	FB = FBParser(person_name, person_alias, zp2, home_dir=fp_person, months_back=months_back, last_time=last_time)
+	FB = FBParser(person_name, person_alias, FBzip, home_dir=fp_person, months_back=months_back, last_time=last_time)
 	FB.parse_FB_data()
 	print('FB Parsing complete')
+
 	print('al fin')
 
-""" def input_window():
-	person_alias
-	date_picker
-	months_back
-	data_folder
-	
-def gui_layout():
-	fields = [
-		[sg.T('Alias:',width=20),sg.I(label='person_alias],
-		[],
-		[],
-		[],
-		[sg.B('Parse Data')]
-		] """
-	
-
 if __name__ == "__main__":
-	main()
+	main_test()
 # %%
