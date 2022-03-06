@@ -4,8 +4,18 @@ import PySimpleGUI as sg
 from pathlib import Path
 from datetime import datetime
 import logging
+import sys
 
 from smparser_classes import SMParser, IGParser, FBParser, Media
+
+def resource_path(relative_path):
+	'''Discovers the temporary extract folder for the Executable,
+		for loading stored images or other data'''
+	try:
+		base_path = Path(sys._MEIPASS)
+	except Exception:
+		base_path = Path.cwd()
+	return str(base_path / relative_path)
 
 def parse_main():
 	tempdir = Path.home() / "AppData" / "Local" / "SMParser"
@@ -16,19 +26,20 @@ def parse_main():
 	HISTORY = f"{tempdir / 'history.json'}"
 	
 	sg.theme('DarkBrown4')
-	fp_person = Path(sg.popup_get_folder('Select the folder for the Person.\n(Outbox folder will be created here)\n(Typically, Inbox folder is here also)', 'Person Folder', history=True, history_setting_filename=HISTORY))
+	fp_person = Path(sg.popup_get_folder('Select the folder for the Person.\n(Outbox folder will be created here)\n(Typically, Inbox folder is here also)', 
+					title='Person Folder', history=True, history_setting_filename=HISTORY, image=LOGO))
 	logfile = f"{fp_person / 'parser.log'}"
 	logging.basicConfig(format="%(asctime)s|%(levelname)s:%(message)s", filename=logfile, level=logging.DEBUG) # encoding='utf-8')
 	
-	person_name = sg.popup_get_text('Enter Person name or initials', "Person's Name", '(Name)')
-	person_alias = sg.popup_get_text('Enter an Alias for person', "Alias", '(Alias)')
-	_last_time = sg.popup_get_date(title='Choose Start Date')
+	person_name = sg.popup_get_text('Enter Person name or initials', title="Person's Name", image=LOGO)
+	person_alias = sg.popup_get_text('Enter an Alias for person', title="Alias")
+	_last_time = sg.popup_get_date(title='Choose Start Date',no_titlebar=False)
 	if _last_time is not None:
 		m,d,y = _last_time
 		last_time = datetime(y,m,d)
 	else:
 		last_time = datetime.today()
-	_months_back = sg.popup_get_text('How many months back?', "Months Back", '(Alias)')
+	_months_back = sg.popup_get_text('How many months back?', "Months Back", '24')
 	months_back = int(_months_back) if _months_back.isnumeric() and int(_months_back) > 0 else 24
 
 	FBzip = sg.popup_get_file('Select Facebook(FB) zip file', title='FB Zip file', 
@@ -61,4 +72,5 @@ def parse_main():
 	print('al fin')
 
 if __name__ == '__main__':
+	LOGO = resource_path(r'BrownU_logo.png')
 	parse_main()
