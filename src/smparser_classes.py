@@ -21,6 +21,7 @@ import numpy as np
 from PIL import Image, ImageFilter
 import PySimpleGUI as sg
 import scrubadub
+import scrubadub_spacy
 
 #%%
 class SMParser():
@@ -45,11 +46,21 @@ class SMParser():
 	#Utility Functions
 	def _sys_check(self):
 		self.timetype = 1 if platform.system() == 'Windows' else -1
-		self.time_string_opts = {
+		self.time_string_format = {
 			1: lambda ts: ts.strftime("%#I:%M %p"),
 			-1: lambda ts: ts.strftime("%-I:%M %p")
 		}
 		return True
+	
+	def _setup_scrubber(self):
+		self.scrubber = scrubadub.Scrubber()
+		self.scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector(model='en_core_web_trf'))
+		#scrubber.clean("My name is John and my phone number is 505-222-1138")
+		supplied_filth_detector = scrubadub.detectors.UserSuppliedFilthDetector( [{'match': 'Maggie', 'filth_type': 'name', 'ignore_case': False},
+			 {'match': 'Nail', 'filth_type': 'name', 'ignore_case': False}
+			 {'match': self.personname, 'filth_type':'name', 'ignore_case':True}])
+		self.scrubber.add_detector(supplied_filth_detector)
+		re.sub(r"@\S*","{{USERNAME}}","@Maggie Nail and my phone number is 505-222-1138")
 
 	def _date_calc(self):
 		'''Calculate derived dates and time intervals'''
@@ -68,6 +79,14 @@ class SMParser():
 		json_path = self.zip_root / folder / f"{filename}.json"
 		return json.loads(json_path.read_text(), object_hook=lambda d:SimpleNamespace(**d))
 
+	def get_txt(self, folder, filename):
+		'''Retrieves txt data file and returns an object'''
+		txt_path = self.zip_root / folder / f"{filename}.txt"
+		_txt_data = txt_path.read_text()
+		recs = _txt_data.split('\n\n')
+		drecs = [{k:v for k,v in [p.split(': ',1) for p in t.split('\n')]} for t in recs]
+		return SimpleNamespace(**drecs)
+g
 	def parse_img_ext(self, mediafp):
 		ext_type = mediafp.suffix if hasattr(mediafp, 'suffix') else '' 
 		return ext_type if ext_type in self.VALID_TYPES else None
@@ -116,10 +135,9 @@ class SMParser():
 				csv_writer.writerow(entry)
 		return None
     
-	@staticmethod
-	def clean_text(text):
-		text = scrubadub.clean(text)
-		return re.sub(r'@\S*', "{{USERNAME}}", text).encode('latin1', 'ignore').decode('utf8', 'ignore')
+	def clean_text(self, text):
+		_text = re.sub(r'@\S*', "{{USERNAME}}", text).encode('latin1', 'ignore').decode('utf8', 'ignore')
+		return self.scrubber.clean(_text)
 
 	@staticmethod
 	def ph_num(n):
@@ -127,7 +145,7 @@ class SMParser():
 		return f'{n//26}{chr(65+n%26)}'
 
 	def time_string(self, timestamp):
-		return self.time_string_opts[self.timetype](timestamp)
+		return self.time_string_format[self.timetype](timestamp)
 		
 	def parse_time(self, when):
 		'''in: a form of date-time
@@ -497,12 +515,14 @@ class IGParser(SMParser):
 		self.scrub_and_save_media(self.posts_media)
 
 class TTParser(SMParser):
-    def __init__(self, person_name, person_alias, zip_path, home_dir=None):
-        pass    
+	'''Parser class for TikTok user data'''
+	def __init__(self, person_name, person_alias, zip_path, home_dir=None):
+		pass    
 
-class YTParser(SMParser):
-    def __init__(self, person_name, person_alias, zip_path, home_dir=None):
-        pass    
+class SCParser(SMParser):
+	'''Parser class for SnapChat data'''
+	def __init__(self, person_name, person_alias, zip_path, home_dir=None):
+		pass    
 #%%
 def main_test():
 	#For Testing

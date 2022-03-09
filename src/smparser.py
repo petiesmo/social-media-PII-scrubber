@@ -1,11 +1,11 @@
 #! /bin/python3/smparser.py
 
-import PySimpleGUI as sg
 from pathlib import Path
 from datetime import datetime
 import logging
 import sys
 
+import PySimpleGUI as sg
 from smparser_classes import SMParser, IGParser, FBParser, Media
 
 def resource_path(relative_path):
@@ -18,22 +18,22 @@ def resource_path(relative_path):
 	return str(base_path / relative_path)
 
 def parse_main():
+	#Setup GUI and Logging settings
 	tempdir = Path.home() / "AppData" / "Local" / "SMParser"
 	if not tempdir.exists(): tempdir.mkdir()
+	sg.theme('DarkBrown4')
 	us = sg.UserSettings()
 	sg.user_settings_filename(path=tempdir)
-	#logfile = f"{tempdir / 'smparser.log'}"
 	HISTORY = f"{tempdir / 'history.json'}"
-	
-	sg.theme('DarkBrown4')
-	fp_person = Path(sg.popup_get_folder('Select the folder for the Person.\n(Outbox folder will be created here)\n(Typically, Inbox folder is here also)', 
+	#Request path for output files
+	fp_person = Path(sg.popup_get_folder('Select the folder for the Person.\n(Outbox folder will be created here)\n(Social Media zip files are typically here also)', 
 					title='Person Folder', history=True, history_setting_filename=HISTORY, image=LOGO))
 	logfile = f"{fp_person / 'parser.log'}"
 	logging.basicConfig(format="%(asctime)s|%(levelname)s:%(message)s", filename=logfile, level=logging.DEBUG) # encoding='utf-8')
-	
+	#Request parse instance information (IDs, date range)
 	person_name = sg.popup_get_text('Enter Person name or initials', title="Person's Name", image=LOGO)
 	person_alias = sg.popup_get_text('Enter an Alias for person', title="Alias")
-	_last_time = sg.popup_get_date(title='Choose Start Date',no_titlebar=False)
+	_last_time = sg.popup_get_date(title='Choose End Date (Default is Today)', no_titlebar=False)
 	if _last_time is not None:
 		m,d,y = _last_time
 		last_time = datetime(y,m,d)
@@ -41,7 +41,7 @@ def parse_main():
 		last_time = datetime.today()
 	_months_back = sg.popup_get_text('How many months back?', "Months Back", '24')
 	months_back = int(_months_back) if _months_back.isnumeric() and int(_months_back) > 0 else 24
-
+	#Request paths to input data zip files
 	FBzip = sg.popup_get_file('Select Facebook(FB) zip file', title='FB Zip file', 
 								default_path=f"{fp_person / 'Inbox'}", default_extension='.zip', 
 								history=True, history_setting_filename=HISTORY)  
@@ -54,21 +54,21 @@ def parse_main():
 	logging.info(f'FB File: {FBzip}')
 	logging.info(f'IG File: {IGzip}')
 	
-	
 	if FBzip is None:
 		logging.info('Skipped FB')
 	else:
 		FB = FBParser(person_name, person_alias, FBzip, home_dir=fp_person, months_back=months_back, last_time=last_time)
 		FB.parse_FB_data()
-		print('FB Parsing complete')
+		logging.info('FB Parsing complete')
+		sg.popup_timed('FB Parsing complete',non_blocking=True)
 
 	if IGzip is None:
 		logging.info('Skipped IG')
 	else:
 		IG = IGParser(person_name, person_alias, IGzip, home_dir=fp_person, months_back=months_back, last_time=last_time)
 		IG.parse_IG_data() 
-		print('IG Parsing complete')
-
+		logging.info('IG Parsing complete')
+		sg.popup_timed('IG Parsing complete',non_blocking=True)
 	print('al fin')
 
 if __name__ == '__main__':
