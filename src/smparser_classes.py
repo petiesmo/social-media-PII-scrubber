@@ -29,12 +29,14 @@ class SMParser():
 		self.VALID_TYPES = ['.bmp', '.jpeg', '.jpg', '.jpe', '.png', '.tiff', '.tif']
 		self.person_name = person_name
 		self.person_alias = person_alias
+		self.username = 'default'
 		self.zip_file = zipfile.ZipFile(zip_path)
 		self.zip_root = zipfile.Path(self.zip_file)
 		self.months_back = months_back if months_back is not None else 24
 		self.last_time = last_time if last_time is not None else datetime.today()
 		self._date_calc()
 		self._sys_check()
+		self._setup_scrubber()
 
 		self.home_path = Path(home_dir) if home_dir is not None else Path(zip_path).parent.parent
 		self.outbox_path = self.home_path / 'outbox'
@@ -53,14 +55,17 @@ class SMParser():
 		return True
 	
 	def _setup_scrubber(self):
-		self.scrubber = scrubadub.Scrubber()
-		self.scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector(model='en_core_web_trf'))
-		#scrubber.clean("My name is John and my phone number is 505-222-1138")
-		supplied_filth_detector = scrubadub.detectors.UserSuppliedFilthDetector( [{'match': 'Maggie', 'filth_type': 'name', 'ignore_case': False},
-			 {'match': 'Nail', 'filth_type': 'name', 'ignore_case': False}
-			 {'match': self.personname, 'filth_type':'name', 'ignore_case':True}])
-		self.scrubber.add_detector(supplied_filth_detector)
-		re.sub(r"@\S*","{{USERNAME}}","@Maggie Nail and my phone number is 505-222-1138")
+		self._scrubber = scrubadub.Scrubber()
+		self._scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector(model='en_core_web_trf'))
+		
+	@property
+	def scrubber(self):
+		custom_detector = scrubadub.detectors.UserSuppliedFilthDetector( [
+			{'match': self.last_name, 'filth_type': 'name', 'ignore_case': True},
+			{'match': self.first_name, 'filth_type': 'name', 'ignore_case': True}
+			{'match': self.username, 'filth_type':'name', 'ignore_case':True}])
+		self._scrubber.add_detector(custom_detector)
+		return self._scrubber
 
 	def _date_calc(self):
 		'''Calculate derived dates and time intervals'''
@@ -86,7 +91,7 @@ class SMParser():
 		recs = _txt_data.split('\n\n')
 		drecs = [{k:v for k,v in [p.split(': ',1) for p in t.split('\n')]} for t in recs]
 		return SimpleNamespace(**drecs)
-g
+
 	def parse_img_ext(self, mediafp):
 		ext_type = mediafp.suffix if hasattr(mediafp, 'suffix') else '' 
 		return ext_type if ext_type in self.VALID_TYPES else None
