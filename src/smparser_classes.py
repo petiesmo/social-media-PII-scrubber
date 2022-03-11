@@ -182,8 +182,8 @@ class Media():
 	Time: str
 	Path: Path
 	Caption: str = ""
-	Likes: str = ""
-	Comments: str = ""
+	#Likes: str = ""
+	#Comments: str = ""
 	#Future TODO: Make comments a dict, like **kwargs?
 
 #Parse Functions unique to each platform
