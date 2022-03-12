@@ -29,7 +29,7 @@ class SMParser():
 		self.VALID_TYPES = ['.bmp', '.jpeg', '.jpg', '.jpe', '.png', '.tiff', '.tif']
 		self.last_name = last_name
 		self.first_name = first_name
-		self.person_name = f'{first_name},{last_name}'
+		self.person_name = f'{first_name} {last_name}'
 		self.person_alias = person_alias
 		self.username = 'default'
 		self.zip_file = zipfile.ZipFile(zip_path)
@@ -112,7 +112,6 @@ class SMParser():
 	def scrub_and_save_media(self, media_list):
 		'''Cycle through all Media objects, anonymizing each by blurring faces'''
 		#TODO: Add a Progress Meter!
-		#TODO: Add a 'problems' list?
 		self.problems = []
 		for i, photo in enumerate(media_list):
 			try:
@@ -129,6 +128,7 @@ class SMParser():
 				self.problems.append(photo)
 				continue
 		logging.info(f'Media scrub complete. {len(media_list)} images processed.')
+		logging.info(f'Issues processing {len(problems)} photos')
 		return True
 
 	def genCSV(self, csv_name, header, data):
@@ -151,28 +151,28 @@ class SMParser():
 		'''Consistent photo numbering'''
 		return f'{n//26}{chr(65+n%26)}'
 
-	def time_string(self, timestamp):
-		return self.time_string_format[self.timetype](timestamp)
+	def time_string(self, timestring):
+		return self.time_string_format[self.timetype](timestring)
 		
 	def parse_time(self, when):
 		'''in: a form of date-time
-		out: timestamp, time, date'''
+		out: datetime obj, date obj, time string'''
 		try:
 			if when is None:
-				ts = datetime.today()
+				dt = datetime.today()
 			elif type(when) == int or (type(when) == str and when.isnumeric()): 
-				ts = datetime.fromtimestamp(when)
+				dt = datetime.fromtimestamp(when)
 			else:
 				when = when.split("+", 1)[0]
-				ts = datetime.strptime(when, '%Y-%m-%dT%H:%M:%S')
-				#TODO: Change to dateutil.parser.parse
+				#ts = datetime.strptime(when, '%Y-%m-%dT%H:%M:%S')
+				dt = dateutil.parser.parse(when)
 		except ValueError:
 			logging.error(f"ValueError: wasn't able to parse timestamp {when}")
-			ts = datetime.today()
+			dt = datetime.today()
 		finally:
 			date = ts.date()
 			time = self.time_string(ts)
-		return ts, date, time
+		return dt, date, time
 
 
 #%%	    
@@ -224,6 +224,7 @@ class FBParser(SMParser):
 		try:
 			#.timestamp;  .title;   .data[0].reaction.reaction;  .data[0].reaction.actor
 			#Per Client: Gather counts by type over the range; don't concat titles or agg by week (for now)
+			#TODO: refactor this in Pandas?
 			reactions_inrange = [r for r in reactions if self.in_date_range(datetime.fromtimestamp(r.timestamp))]
 			f_reaction_date = lambda r: (datetime.fromtimestamp(r.timestamp)).date()
 			f_reaction_type = lambda r: r.data[0].reaction.reaction
@@ -251,8 +252,7 @@ class FBParser(SMParser):
 		'''Parsing of Facebook posts; Scrubbing captions & blurring photos'''
 		logging.info(f'Parsing {self.username} FB posts metadata')
 		posts_header = ['Date', 'Time', 'Location', 'Post', 'Caption', 'Subject Comments', 'Friend Comments']
-		data = self.get_json('posts','your_posts_1')
-		posts = data
+		posts = self.get_json('posts','your_posts_1')
 		payload = list()
 		for i, post in enumerate(posts):
 			try:
@@ -431,9 +431,9 @@ class IGParser(SMParser):
 			ts = c0.timestamp
 			comment_value = c0.value
 			author = comment.title
-			timestamp, date, time = self.parse_time(ts)
+			timestring, date, time = self.parse_time(ts)
 			
-			if not self.in_date_range(timestamp): continue
+			if not self.in_date_range(timestring): continue
 			content = self.clean_text(comment_value)
 			if re.compile(r'^\s*$').match(content): continue
 			row = {"Date":date, "Time":time, "Content":content}
@@ -470,14 +470,14 @@ class IGParser(SMParser):
 			comment = post.title if hasattr(post, 'title') else ""
 			for j, photo in enumerate(post.media):
 				ts = ts if ts is not None else photo.creation_timestamp
-				pts, date, time = self.parse_time(ts)
+				pts, pdate, ptime = self.parse_time(ts)
 				if not self.in_date_range(pts): continue
 				comment += self.clean_text(photo.title)
 				img_fp = photo.uri
 				img_ext = self.parse_img_ext(Path(img_fp))
 				if img_ext is None: continue
 				out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
-				ph = Media(img_fp, img_ext, date, time, out_path, comment)
+				ph = Media(img_fp, img_ext, pdate, ptime, out_path, comment)
 				self.posts_media.append(ph)
 
 		#--- STORIES
@@ -487,12 +487,12 @@ class IGParser(SMParser):
 		valid_stories = [s for s in stories_data.ig_stories if self.in_date_range(datetime.fromtimestamp(s.creation_timestamp))]
 		for i, story in enumerate(valid_stories):
 			img_fp = story.uri
-			ts, date, time = self.parse_time(story.creation_timestamp)
+			sts, sdate, stime = self.parse_time(story.creation_timestamp)
 			img_ext = self.parse_img_ext(Path(img_fp))
-			if not self.in_date_range(ts) or img_ext is None: continue
+			if not self.in_date_range(sts) or img_ext is None: continue
 			out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
 			comment = self.clean_text(story.title)
-			ph = Media(img_fp, img_ext, date, time, out_path, comment)
+			ph = Media(img_fp, img_ext, sdate, stime, out_path, comment)
 			self.posts_media.append(ph)
 
 		#--- PROFILE PICS
@@ -503,9 +503,9 @@ class IGParser(SMParser):
 			img_fp = photo.uri
 			img_ext = self.parse_img_ext(Path(img_fp))
 			out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
-			ts, date, time = self.parse_time(photo.creation_timestamp)
+			pts, pdate, ptime = self.parse_time(photo.creation_timestamp)
 			comment = self.clean_text(photo.title)
-			ph = Media(img_fp, img_ext, date, time, out_path, comment)
+			ph = Media(img_fp, img_ext, pdate, ptime, out_path, comment)
 			self.posts_media.append(ph)
 		
 		#--- Build the csv
