@@ -7,10 +7,11 @@ class TTParser(SMParser):
 
     def parse_profile_metadata(self):
         logging.info('Parsing TT profile metadata')
-        data = self.get_txt('Profile','Profile Info')
+        data = (self.get_txt('Profile','Profile Info'))[0]
         header = ['Profile Item', 'Value']
         self.username = data["Username"]
-		payload = [{'Profile Item':k, 'Value': self.scrubber.clean(v)} for k,v in data[0]] 
+	data['Birthdate'] = {{BIRTHDAY}}
+	payload = [{'Profile Item':k, 'Value': self.scrubber.clean(v)} for k,v in data] 
         self.genCSV('TT_Profile', header, data)
         return None
 		
@@ -34,7 +35,7 @@ class TTParser(SMParser):
         fht = [ht['Hashtag Name'] for ht in data2]
 		hashtag_header = ['Hashtag Name', 'Hashtag Link', 'Favorite']
         for ht in data:
-			ht['Favorite'] = 'Yes' if (ht['Hashtag Name'] in fht) else ''
+		ht['Favorite'] = 'Yes' if (ht['Hashtag Name'] in fht) else ''
         self.genCSV("TT_hashtags", hashtag_header, data)
         return None
     '''
