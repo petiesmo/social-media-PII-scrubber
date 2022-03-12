@@ -59,6 +59,7 @@ class SMParser():
 	def _setup_scrubber(self):
 		self._scrubber = scrubadub.Scrubber()
 		self._scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector(model='en_core_web_trf'))
+		self._scrubber.add_detector(scrubadub.detectors.DateOfBirthDetector(require_context=True))
 		
 	@property
 	def scrubber(self):
