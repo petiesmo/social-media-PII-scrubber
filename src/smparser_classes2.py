@@ -2,14 +2,15 @@ from smparser_classes import SMParser
 
 class TTParser(SMParser):
     '''Parser class for TikTok user data'''
-    def __init__(self, person_name, person_alias, zip_path, home_dir=None):
-        pass
+    #def __init__(self, person_name, person_alias, zip_path, home_dir=None):
+    #    pass
 
     def parse_profile_metadata(self):
         logging.info('Parsing TT profile metadata')
         data = self.get_txt('Profile','Profile Info')
-        header = data.keys()
+        header = ['Profile Item', 'Value']
         self.username = data["Username"]
+		payload = [{'Profile Item':k, 'Value': self.scrubber.clean(v)} for k,v in data[0]] 
         self.genCSV('TT_Profile', header, data)
         return None
 		
@@ -26,13 +27,15 @@ class TTParser(SMParser):
         return None
 
     def parse_hashtags(self):
-        '''Parsing Hashtags'''
+        '''Parsing Hashtags - List of Hashtags with favorites noted'''
         logging.info("Parsing TT Hashtags")
         data = self.get_txt('Activity', 'Hashtag')
         data2 = self.get_txt('Activity', 'Favorite HashTags')
-        hashtag_header = ['Favorite', 'Hashtag Name', 'Hashtag Link']
-        payload = data
-        self.genCSV("TT_follow", hashtag_header, payload)
+        fht = [ht['Hashtag Name'] for ht in data2]
+		hashtag_header = ['Hashtag Name', 'Hashtag Link', 'Favorite']
+        for ht in data:
+			ht['Favorite'] = 'Yes' if (ht['Hashtag Name'] in fht) else ''
+        self.genCSV("TT_hashtags", hashtag_header, data)
         return None
     '''
     App Settings\Block List.txt
@@ -60,8 +63,8 @@ class TTParser(SMParser):
 
 class SCParser(SMParser):
     '''Parser class for SnapChat data'''
-    def __init__(self, person_name, person_alias, zip_path, home_dir=None):
-        pass 
+    #def __init__(self, person_name, person_alias, zip_path, home_dir=None):
+    #    pass 
     '''
     friends.json
     ranking.json
