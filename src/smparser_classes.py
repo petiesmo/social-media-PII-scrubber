@@ -25,9 +25,11 @@ import scrubadub_spacy
 
 #%%
 class SMParser():
-	def __init__(self, person_name, person_alias, zip_path, home_dir=None, months_back=None, last_time=None):
+	def __init__(self, last_name, first_name, person_alias, zip_path, home_dir=None, months_back=None, last_time=None):
 		self.VALID_TYPES = ['.bmp', '.jpeg', '.jpg', '.jpe', '.png', '.tiff', '.tif']
-		self.person_name = person_name
+		self.last_name = last_name
+		self.first_name = first_name
+		self.person_name = f'{first_name},{last_name}'
 		self.person_alias = person_alias
 		self.username = 'default'
 		self.zip_file = zipfile.ZipFile(zip_path)
@@ -62,7 +64,7 @@ class SMParser():
 	def scrubber(self):
 		custom_detector = scrubadub.detectors.UserSuppliedFilthDetector( [
 			{'match': self.last_name, 'filth_type': 'name', 'ignore_case': True},
-			{'match': self.first_name, 'filth_type': 'name', 'ignore_case': True}
+			{'match': self.first_name, 'filth_type': 'name', 'ignore_case': True},
 			{'match': self.username, 'filth_type':'name', 'ignore_case':True}])
 		self._scrubber.add_detector(custom_detector)
 		return self._scrubber
@@ -90,7 +92,7 @@ class SMParser():
 		_txt_data = txt_path.read_text()
 		recs = _txt_data.split('\n\n')
 		drecs = [{k:v for k,v in [p.split(': ',1) for p in t.split('\n')]} for t in recs]
-		return SimpleNamespace(**drecs)
+		return drecs	#SimpleNamespace(**drecs)
 
 	def parse_img_ext(self, mediafp):
 		ext_type = mediafp.suffix if hasattr(mediafp, 'suffix') else '' 
@@ -120,8 +122,8 @@ class SMParser():
 					img_data = Image.open(zip_img)
 					blurred_img = self.blur_faces(img_data)
 				if blurred_img is None: raise ValueError('Blurred image not successful')
-				if not photo.Path.parent.is_dir(): photo.Path.parent.mkdir(parents=True, exist_ok=True)
-				blurred_img.save(photo.Path)
+				if not photo.ImgPath.parent.is_dir(): photo.ImgPath.parent.mkdir(parents=True, exist_ok=True)
+				blurred_img.save(photo.ImgPath)
 			except Exception as e:
 				logging.error(f'Issue with {photo.fp_src}. Skipped')
 				self.problems.append(photo)
@@ -180,11 +182,12 @@ class Media():
 	file_type: str
 	Date: str
 	Time: str
-	Path: Path
+	ImgPath: Path
 	Caption: str = ""
 	#Likes: str = ""
 	#Comments: str = ""
 	#Future TODO: Make comments a dict, like **kwargs?
+
 
 #Parse Functions unique to each platform
 class FBParser(SMParser):
@@ -403,6 +406,7 @@ class FBParser(SMParser):
 		self.scrub_and_save_media(self.posts_media)
 		return None
 
+#%%
 class IGParser(SMParser):
 	'''Social Media Parser class for Instagram data, v2 Schema'''
 	#def __init__(self, person_name, person_alias, zip_path, home_dir=None):
@@ -456,7 +460,7 @@ class IGParser(SMParser):
 	def parse_posts(self):
 		'''Parsing IG Posts - Indexing of Media paths in Posts & Stories'''
 		logging.info('Parsing IG posts')
-		posts_header = ["Date", "Time", "Path", "Caption", "Likes", "Comments"]
+		posts_header = ["Date", "Time", "ImgPath", "Caption", "Likes", "Comments"]
 		#--- PHOTOS
 		posts_data = self.get_json("content", "posts_1")
 		#jposts[0].media[0].uri, .creation_timestamp, .title
