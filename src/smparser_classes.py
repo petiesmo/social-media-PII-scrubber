@@ -100,7 +100,8 @@ class SMParser():
 		return ext_type if ext_type in self.VALID_TYPES else None
 
 	def blur_faces(self, img):
-		'''Receives and returns a PIL Image object'''
+		''' Input: PIL Image object, 
+			Output: PIL Image object (blurred)'''
 		faces = face_recognition.face_locations(np.array(img))
 		face_boxes = [(d,a,b,c) for (a,b,c,d) in faces]
 		for face in face_boxes:
@@ -225,7 +226,7 @@ class FBParser(SMParser):
 		try:
 			#.timestamp;  .title;   .data[0].reaction.reaction;  .data[0].reaction.actor
 			#Per Client: Gather counts by type over the range; don't concat titles or agg by week (for now)
-			#TODO: refactor this in Pandas?
+			#TODO: refactor this in Pandas pivot?
 			reactions_inrange = [r for r in reactions if self.in_date_range(datetime.fromtimestamp(r.timestamp))]
 			f_reaction_date = lambda r: (datetime.fromtimestamp(r.timestamp)).date()
 			f_reaction_type = lambda r: r.data[0].reaction.reaction
@@ -245,7 +246,7 @@ class FBParser(SMParser):
 				rc['Type'] = rtype
 				rc['Total'] = reaction_totals[rtype]
 		except Exception as e:
-			print(f'Error parsing FB reaction: {type(e).__name__}: {e}')
+			logging.error(f'Error parsing FB reaction: {type(e).__name__}: {e}')
 		self.genCSV("FB_reactions", react_header, list(reaction_counts.values()))
 		return None
 	
@@ -310,7 +311,7 @@ class FBParser(SMParser):
 									'Friend Comments': '; '.join(fc),
 									'Subject Comments': '; '.join(sc)})
 			except Exception as e:
-				logging.info(f"Error parsing FB profile update post: {type(e).__name__}: {e}")
+				logging.error(f"Error parsing FB profile update post: {type(e).__name__}: {e}")
 				continue
 		self.genCSV("FB_posts", posts_header, payload)
 		return None
@@ -350,19 +351,18 @@ class FBParser(SMParser):
 							if self.username in comment.author:
 								sc.append(f'"{self.clean_text(comment.comment)}"')
 								self.rem_comments.append(comment.comment)
-							else:
-								fc.append(f'"{self.clean_text(comment.comment)}"')
+								continue
+							fc.append(f'"{self.clean_text(comment.comment)}"')
 
 					out_path = self.media_path / 'FB' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
-					ph = Media(media_fp, img_ext, pdate, ptime, out_path)
-					self.posts_media.append(ph)
+					self.posts_media.append(Media(media_fp, img_ext, pdate, ptime, out_path))
 					payload.append({'Date': pdate, 'Time': ptime, 
 									'Location': media_fp, 'Post': out_path, 
 									'Caption': caption, 
 									'Friend Comments': ';'.join(fc),
 									'Subject Comments': ';'.join(sc)})
 			except Exception as e:
-				logging.info(f"Error parsing FB profile update post: {type(e).__name__}: {e}")
+				logging.error(f"Error parsing FB profile update post: {type(e).__name__}: {e}")
 				continue
 		self.genCSV("FB_profile_updates", posts_header, payload)
 		return None
@@ -390,7 +390,7 @@ class FBParser(SMParser):
 								'Author': 'Participant', 'Subject Comments': comment_text,
 								'Friend Comments': '', 'URL': comment_attachment})
 			except Exception as e:
-				print(f'Error parsing FB reaction: {type(e).__name__}: {e}')
+				logging.error(f'Error parsing FB reaction: {type(e).__name__}: {e}')
 				continue
 		self.genCSV("FB_comments", comment_header, payload)
 		return None
@@ -464,8 +464,6 @@ class IGParser(SMParser):
 		posts_header = ["Date", "Time", "ImgPath", "Caption", "Likes", "Comments"]
 		#--- PHOTOS
 		posts_data = self.get_json("content", "posts_1")
-		#jposts[0].media[0].uri, .creation_timestamp, .title
-		#valid_posts = [p for p in posts_data if self.in_date_range(datetime.fromtimestamp(p.creation_timestamp))]
 		for i, post in enumerate(posts_data):
 			ts = post.creation_timestamp if hasattr(post, 'creation_timestamp') else None
 			comment = post.title if hasattr(post, 'title') else ""
@@ -478,8 +476,7 @@ class IGParser(SMParser):
 				img_ext = self.parse_img_ext(Path(img_fp))
 				if img_ext is None: continue
 				out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
-				ph = Media(img_fp, img_ext, pdate, ptime, out_path, comment)
-				self.posts_media.append(ph)
+				self.posts_media.append(Media(img_fp, img_ext, pdate, ptime, out_path, comment))
 
 		#--- STORIES
 		logging.info("Parsing IG stories")
@@ -493,21 +490,18 @@ class IGParser(SMParser):
 			if not self.in_date_range(sts) or img_ext is None: continue
 			out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
 			comment = self.clean_text(story.title)
-			ph = Media(img_fp, img_ext, sdate, stime, out_path, comment)
-			self.posts_media.append(ph)
+			self.posts_media.append(Media(img_fp, img_ext, sdate, stime, out_path, comment))
 
 		#--- PROFILE PICS
 		logging.info("Parsing IG profile pic")
 		profile_pic_data = self.get_json("content", "profile_photos")
-		#prof.ig_profile_picture[0].uri
 		for i, photo in enumerate(profile_pic_data.ig_profile_picture):
 			img_fp = photo.uri
 			img_ext = self.parse_img_ext(Path(img_fp))
 			out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
 			pts, pdate, ptime = self.parse_time(photo.creation_timestamp)
 			comment = self.clean_text(photo.title)
-			ph = Media(img_fp, img_ext, pdate, ptime, out_path, comment)
-			self.posts_media.append(ph)
+			self.posts_media.append(Media(img_fp, img_ext, pdate, ptime, out_path, comment))
 		
 		#--- Build the csv
 		logging.debug(self.posts_media)
