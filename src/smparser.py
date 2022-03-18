@@ -19,7 +19,7 @@ def resource_path(relative_path):
 
 def GUI():
 	def sB (label):
-		return sg.FileBrowse(button_text=label, target=(ThisRow,+1))
+		return sg.FileBrowse(button_text=label, target=(sg.ThisRow,-1))
 		
 	def get_zip_file(sm_platform, home_path):
 		return sg.popup_get_file(f'Select {sm_platform} zip file', title='Select Zip file', 
@@ -28,22 +28,21 @@ def GUI():
 	
 	'''Window for user inputs to launch the scrubber process'''
 	layout = [	[sg.T('Fill in details for this Candidate:')],
-				[sg.T('First Name: '), sg.push(), sg.I(key='person_first_name') ],
-				[sg.T('Last Name: '), sg.push(), sg.I(key='person_last_name')],
-				[sg.T('Alias: '), sg.push(), sg.I(key='person_alias')],
-				[sg.T('Pick last date'), sg.push(), CalendarButton('End Date>>>'), target=(ThisRow,+1), sg.I(key='last_date')],
-				[sg.T('How many months back?'), sg.Slider(range=(1,120), default_value=24, key='months_back')]
+				[sg.T('First Name: '), sg.I(key='person_first_name') ],
+				[sg.T('Last Name: '), sg.I(key='person_last_name')],
+				[sg.T('Alias: '), sg.I(key='person_alias')],
+				[sg.T('Pick last date'), sg.I(key='last_date'), sg.CalendarButton('End Date>>>'), target=(sg.ThisRow,-1)],
+				[sg.T('How many months back?'), sg.Slider(range=(1,120), default_value=24, key='months_back'), size=(30,5)]
 				[sg.HorizontalSeparator()],
-				[sg.T('Choose Main Directory: '), sg.FolderBrowse('HOME>>>', target=(ThisRow,+1)), sg.I(key='fp_person') ],
-				[	sg.column([[sg.Listbox(zipfiles, size=(25,8), key='-ZIPS-')]]),
-					sg.push(),
-					sg.column([	[sB('FB>>>'), sg.I(key='FBzip')],
+				[sg.T('Choose Main Directory: '), sg.I(key='fp_person'), sg.FolderBrowse('HOME>>>', target=(ThisRow,-1))],
+				[	sg.Column([[sg.Listbox(zipfiles, size=(25,8), key='-ZIPS-')]]),
+					sg.Column([	[sB('FB>>>'), sg.I(key='FBzip')],
 								[sB('IG>>>'), sg.I(key='IGzip')],
 								[sB('TT>>>'), sg.I(key='TTzip')],
-								[sB('SC>>>'), sg.I(key='SCzip')]], size=35)
+								[sB('SC>>>'), sg.I(key='SCzip')]])
 				]
 				[sg.T('')],
-				[sg.Image(LOGO), sg.push(), sg.OK, sg.Cancel],
+				[sg.Image(LOGO), sg.OK(), sg.Cancel()],
 				[sg.StatusBar('Not all values filled', key='-STATUS-', justification='right')]
 			]
 
