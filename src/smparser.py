@@ -18,6 +18,9 @@ def resource_path(relative_path):
 	return str(base_path / relative_path)
 
 def GUI():
+	def sB (label):
+		return sg.FileBrowse(button_text=label, target=(ThisRow,+1))
+		
 	def get_zip_file(sm_platform, home_path):
 		return sg.popup_get_file(f'Select {sm_platform} zip file', title='Select Zip file', 
 								default_path=f"{home_path / 'Inbox'}", default_extension='.zip', 
@@ -28,19 +31,19 @@ def GUI():
 				[sg.T('First Name: '), sg.push(), sg.I(key='person_first_name') ],
 				[sg.T('Last Name: '), sg.push(), sg.I(key='person_last_name')],
 				[sg.T('Alias: '), sg.push(), sg.I(key='person_alias')],
-				[sg.T('Pick last date'), sg.push(), B('End Date>>>'), sg.I(key='last_date', default=None)],
+				[sg.T('Pick last date'), sg.push(), CalendarButton('End Date>>>'), target=(ThisRow,+1), sg.I(key='last_date')],
 				[sg.T('How many months back?'), sg.Slider(range=(1,120), default_value=24, key='months_back')]
 				[sg.HorizontalSeparator()],
-				[sg.T('Choose Main Directory: '), sg.push(), sg.B('HOME>>>'), sg.I(key='fp_person') ],
+				[sg.T('Choose Main Directory: '), sg.FolderBrowse('HOME>>>', target=(ThisRow,+1)), sg.I(key='fp_person') ],
 				[	sg.column([[sg.Listbox(zipfiles, size=(25,8), key='-ZIPS-')]]),
 					sg.push(),
-					sg.column([	[sg.B('FB>>>'), sg.I(key='FBzip', default=None)],
-								[sg.B('IG>>>'), sg.I(key='IGzip', default=None)],
-								[sg.B('TT>>>'), sg.I(key='TTzip', default=None)],
-								[sg.B('SC>>>'), sg.I(key='SCzip', default=None)]], size=35)
+					sg.column([	[sB('FB>>>'), sg.I(key='FBzip')],
+								[sB('IG>>>'), sg.I(key='IGzip')],
+								[sB('TT>>>'), sg.I(key='TTzip')],
+								[sB('SC>>>'), sg.I(key='SCzip')]], size=35)
 				]
 				[sg.T('')],
-				[sg.Image(LOGO), sg.push(), sg.B('OK'), sg.B('Cancel')],
+				[sg.Image(LOGO), sg.push(), sg.OK, sg.Cancel],
 				[sg.StatusBar('Not all values filled', key='-STATUS-', justification='right')]
 			]
 
@@ -54,26 +57,6 @@ def GUI():
 			break
 		if event == 'OK':
 			window['-TEXT-KEY-'].update(values['-INPUT-'])
-		if event == 'HOME>>>':
-			fp_person = Path(sg.popup_get_folder('Select the folder for the Person.\n(Outbox folder will be created here)\n(Social Media zip files are typically here also)', 
-					title='Person Folder', history=True, history_setting_filename=HISTORY, image=LOGO))
-			window['fp_person'].update(fp_person)
-		if event == 'FB>>>':
-			window['FBzip'].update(get_zip_file('Facebook(FB)', fp_person))
-		if event == 'IG>>>':
-			window['IGzip'].update(get_zip_file('Instagram(IG)', fp_person))
-		if event == 'TT>>>':
-			window['TTzip'].update(get_zip_file('TikTok(TT)', fp_person))
-		if event == 'SC>>>':
-			window['SCzip'].update(get_zip_file('Snapchat(SC)', fp_person))
-		if event == 'End Date>>>':
-			_last_date = sg.popup_get_date(title='Choose End Date (Default is Today)', no_titlebar=False)
-			if _last_date is not None:
-				m,d,y = _last_date
-				last_date = datetime(y,m,d)
-			else:
-				last_date = datetime.today()
-			window['last_date'] = last_date.strftime("%MM-%DD-%YYYY")
 	window.close()
 	return values
 
