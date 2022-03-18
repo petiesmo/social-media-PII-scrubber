@@ -81,3 +81,15 @@ class SCParser(SMParser):
     number of followers = friends.json
     number of views on participant's posts = story_history.json
     friend requests sent, deleted users and blocked users, and ignored snapchatters by participant = ??'''
+
+	def parse_friends(self):
+		'''Parse SC Friends - Aggregated counts/totals'''
+		logging.info(f'Parsing {self.username} SC friends metadata')
+		data = self.get_json('json','friends')
+		#data2 = self.get_json('friends_and_followers','removed_friends')
+		friends_header = ['Total Friends', 'Removed Friends']
+		payload = [
+			{'Total Friends': len(data.friends), 
+			'Removed Friends': len(data2.deleted_friends_v2)}]
+		self.genCSV("FB_friends", friends_header, payload)
+		return None
