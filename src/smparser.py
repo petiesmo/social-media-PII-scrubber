@@ -18,29 +18,34 @@ def resource_path(relative_path):
 	return str(base_path / relative_path)
 
 def GUI():
-	def sB (label):
-		return sg.FileBrowse(button_text=label, target=(sg.ThisRow,-1))
+	#def sB (label):
+	#	return sg.FileBrowse(button_text=label, target=(sg.ThisRow,-1))
 		
 	def get_zip_file(sm_platform, home_path):
 		return sg.popup_get_file(f'Select {sm_platform} zip file', title='Select Zip file', 
 								default_path=f"{home_path / 'Inbox'}", default_extension='.zip', 
 								history=True, history_setting_filename=HISTORY)  
-	
+	zipfiles = ['ABC123.zip','adeedooda.zip', 'zipperof.zip']
 	'''Window for user inputs to launch the scrubber process'''
-	layout = [	[sg.T('Fill in details for this Candidate:')],
+	layout = [	[sg.Titlebar('PII Scrubber - Candidate Infomation')],
+				[sg.T('Fill in details for this Candidate:')],
 				[sg.T('First Name: '), sg.I(key='person_first_name') ],
 				[sg.T('Last Name: '), sg.I(key='person_last_name')],
 				[sg.T('Alias: '), sg.I(key='person_alias')],
-				[sg.T('Pick last date'), sg.I(key='last_date'), sg.CalendarButton('End Date>>>'), target=(sg.ThisRow,-1)],
-				[sg.T('How many months back?'), sg.Slider(range=(1,120), default_value=24, key='months_back'), size=(30,5)]
+				[sg.T('Pick last date'), sg.I(key='last_date'), sg.CalendarButton('<<< End Date')],
+				[sg.T('How many months back?')], [sg.Slider(range=(6,120), resolution=6, default_value=24, key='months_back', size=(30,5), orientation='horizontal')],
 				[sg.HorizontalSeparator()],
-				[sg.T('Choose Main Directory: '), sg.I(key='fp_person'), sg.FolderBrowse('HOME>>>', target=(ThisRow,-1))],
-				[	sg.Column([[sg.Listbox(zipfiles, size=(25,8), key='-ZIPS-')]]),
-					sg.Column([	[sB('FB>>>'), sg.I(key='FBzip')],
-								[sB('IG>>>'), sg.I(key='IGzip')],
-								[sB('TT>>>'), sg.I(key='TTzip')],
-								[sB('SC>>>'), sg.I(key='SCzip')]])
-				]
+				[sg.T('Choose Main Directory: '), sg.I(key='fp_person'), sg.FolderBrowse('<<< HOME')],
+				[	#sg.Column([[sg.Listbox(zipfiles, size=(25,8), key='-ZIPS-')]]),
+					sg.Column([	[sg.CB('FB',default=True,enable_events=True, k='FByes')],
+								[sg.CB('IG',default=True,enable_events=True, k='IGyes')],
+								[sg.CB('TT',default=True,enable_events=True, k='TTyes')],
+								[sg.CB('SC',default=True,enable_events=True, k='SCyes')]]),
+					sg.Column([	[sg.I(key='FBzip'), sg.FileBrowse('<<< FB')],
+								[sg.I(key='IGzip'), sg.FileBrowse('<<< IG')],
+								[sg.I(key='TTzip'), sg.FileBrowse('<<< TT')],
+								[sg.I(key='SCzip'), sg.FileBrowse('<<< SC')]])
+				],
 				[sg.T('')],
 				[sg.Image(LOGO), sg.OK(), sg.Cancel()],
 				[sg.StatusBar('Not all values filled', key='-STATUS-', justification='right')]
@@ -55,7 +60,8 @@ def GUI():
 			logging.info('The User closed the data entry screen')
 			break
 		if event == 'OK':
-			window['-TEXT-KEY-'].update(values['-INPUT-'])
+			#window['-TEXT-KEY-'].update(values['-INPUT-'])
+			break
 	window.close()
 	return values
 
@@ -85,7 +91,7 @@ def parse_main():
 								default_path=f"{fp_person / 'Inbox'}", default_extension='.zip', 
 								history=True, history_setting_filename=HISTORY) 
 	#Diagnostics
-	logging.info(f'Person: {person_name}, Alias: {person_alias}')
+	logging.info(f'Person: {person_first_name} {person_last_name}, Alias: {person_alias}')
 	logging.info(f'Last time: {last_date}, Months Back: {months_back}')
 	logging.info(f'FB File: {FBzip}')
 	logging.info(f'IG File: {IGzip}')
@@ -118,6 +124,6 @@ if __name__ == '__main__':
 	#us = sg.UserSettings()
 	#sg.user_settings_filename(path=tempdir)
 	HISTORY = f"{tempdir / 'history.json'}"
-	
-	parse_main()
+	GUI()
+	#parse_main()
 	print('al fin')

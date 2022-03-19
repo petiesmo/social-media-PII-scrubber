@@ -14,6 +14,7 @@ import re
 from types import SimpleNamespace
 import zipfile
 
+import dateutil
 from dateutil.relativedelta import relativedelta
 import dateparser
 import face_recognition
@@ -22,6 +23,8 @@ from PIL import Image, ImageFilter
 import PySimpleGUI as sg
 import scrubadub
 import scrubadub_spacy
+import spacy
+spacy.load('en_core_web_sm')
 
 #%%
 class SMParser():
@@ -49,7 +52,7 @@ class SMParser():
 
 	@property
 	def person_name(self):
-		return f'{first_name} {last_name}'
+		return f'{self.first_name} {self.last_name}'
 
 	#Utility Functions
 	@classmethod
@@ -64,7 +67,7 @@ class SMParser():
 	@classmethod
 	def _setup_scrubber(cls):
 		cls._scrubber = scrubadub.Scrubber()
-		cls._scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector(model='en_core_web_trf'))
+		cls._scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector())	#model='en_core_web_trf'))
 		cls._scrubber.add_detector(scrubadub.detectors.DateOfBirthDetector(require_context=True))
 		
 	@property
@@ -144,8 +147,8 @@ class SMParser():
 				self.problems.append(photo)
 				continue
 		logging.info(f'Media scrub complete. {MAX} images processed.')
-		logging.info(f'Issues processing {len(problems)} photos')
-		logging.debug(f'{problems}')
+		logging.info(f'Issues processing {len(self.problems)} photos')
+		logging.debug(f'{self.problems}')
 		return True
 
 	def genCSV(self, csv_name, header, data):
@@ -210,8 +213,8 @@ class Media():
 #Parse Functions unique to each platform
 class FBParser(SMParser):
 	'''Social Media Parser class for Facebook data, v2 Schema'''
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
 
 	def parse_profile_metadata(self):
 		logging.info('Parsing FB profile metadata')
@@ -426,8 +429,8 @@ class FBParser(SMParser):
 #%%
 class IGParser(SMParser):
 	'''Social Media Parser class for Instagram data, v2 Schema'''
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
     
 	def parse_profile_metadata(self):
 		logging.info('Parsing IG profile metadata')

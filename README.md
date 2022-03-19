@@ -16,4 +16,8 @@ Python utility for Parsing and scrubbing PII from social media dumps
 ## Installation
 - Download Visual Studio
 - Install cmake
-- Install dlib 
+- Install dlib
+- Install spacy
+- python -m spacy download en_core_web_sm
+- install scrubadub_spacy
+- spacy.load('en_core_web_sm')
