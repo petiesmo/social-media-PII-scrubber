@@ -9,15 +9,15 @@ Python utility for Parsing and scrubbing PII from social media dumps
 - TikTok
 
 ## Codebase improvements:
-- Classes consolidate multi-use functions and data management
-- Lower temp memory demands: Zip files are not deployed (unzipped)
+- Classes to consolidate multi-use functions and data management
+- Lower temp memory demands: Zip files are not unzipped/destroyed
 - GUI: Simple input form for input values & launch parser
 
 ## Installation
 - Download Visual Studio
 - Install cmake
-- Install dlib
+- Install dlib (for face_recognition)
 - Install spacy
-- python -m spacy download en_core_web_sm
+- python -m spacy download en_core_web_sm  (dictionary of names)
 - install scrubadub_spacy
 - spacy.load('en_core_web_sm')

@@ -16,7 +16,6 @@ import zipfile
 
 import dateutil
 from dateutil.relativedelta import relativedelta
-import dateparser
 import face_recognition
 import numpy as np
 from PIL import Image, ImageFilter
@@ -50,6 +49,15 @@ class SMParser():
 		self._sys_check()
 		self._setup_scrubber()
 
+	def __repr__(self):
+		return f'SMParser({(f"{k}={v}" for k,v in self.__dict__)})'
+
+	@classmethod
+	def from_dict(cls, dict):
+	  obj = cls()
+	  obj.__dict__.update(dict)
+	  return obj
+
 	@property
 	def person_name(self):
 		return f'{self.first_name} {self.last_name}'
@@ -67,7 +75,7 @@ class SMParser():
 	@classmethod
 	def _setup_scrubber(cls):
 		cls._scrubber = scrubadub.Scrubber()
-		cls._scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector())	#model='en_core_web_trf'))
+		cls._scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector(model='en_core_web_sm'))
 		cls._scrubber.add_detector(scrubadub.detectors.DateOfBirthDetector(require_context=True))
 		
 	@property
@@ -162,16 +170,17 @@ class SMParser():
 				csv_writer.writerow(entry)
 		return None
     
-	def clean_text(self, text):
+	def clean_text(self, text:str):
+		'''Scrub PII from text string'''
 		_text = re.sub(r'@\S*', "{{USERNAME}}", text).encode('latin1', 'ignore').decode('utf8', 'ignore')
 		return self.scrubber.clean(_text)
 
 	@staticmethod
-	def ph_num(n):
+	def ph_num(n:int):
 		'''Returns a sequential photo numbering (0A, 0B, 0C...)'''
 		return f'{n//26}{chr(65+n%26)}'
 
-	def time_string(self, timestring):
+	def time_string(self, timestring:str):
 		'''Massages the string representation of time to match the system'''
 		return self.time_string_format[self.timetype](timestring)
 		
