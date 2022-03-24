@@ -1,6 +1,5 @@
-#%%
 #smparser-classes.py
-
+#%%
 import csv
 from collections import Counter
 from dataclasses import dataclass
@@ -9,6 +8,8 @@ import itertools
 import json
 import logging
 from pathlib import Path
+#import pdb
+#pdb.set_trace()
 import platform
 import re
 from types import SimpleNamespace
@@ -43,7 +44,7 @@ class SMParser():
 		self.media_path.mkdir(parents=True, exist_ok=True)
 		self.posts_media = list()
 
-		self.months_back = months_back if months_back is not None else 24
+		self.months_back = int(months_back) if months_back is not None else 24
 		self.last_date = last_date if last_date is not None else datetime.today()
 		self._date_calc()
 		self._sys_check()
@@ -54,9 +55,9 @@ class SMParser():
 
 	@classmethod
 	def from_dict(cls, dict):
-	  obj = cls()
-	  obj.__dict__.update(dict)
-	  return obj
+		obj = cls()
+		obj.__dict__.update(dict)
+		return obj
 
 	@property
 	def person_name(self):
@@ -78,13 +79,17 @@ class SMParser():
 		cls._scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector(model='en_core_web_sm'))
 		cls._scrubber.add_detector(scrubadub.detectors.DateOfBirthDetector(require_context=True))
 		
-	@property
-	def scrubber(self):
+	def scrubber_update(self):
 		custom_detector = scrubadub.detectors.UserSuppliedFilthDetector( [
 			{'match': self.last_name, 'filth_type': 'name', 'ignore_case': True},
 			{'match': self.first_name, 'filth_type': 'name', 'ignore_case': True},
 			{'match': self.username, 'filth_type':'name', 'ignore_case':True}])
 		self._scrubber.add_detector(custom_detector)
+		logging.debug(self._scrubber.__dict__)
+		return self._scrubber
+
+	@property
+	def scrubber(self):
 		return self._scrubber
 
 	def _date_calc(self):
@@ -172,8 +177,8 @@ class SMParser():
     
 	def clean_text(self, text:str):
 		'''Scrub PII from text string'''
-		_text = re.sub(r'@\S*', "{{USERNAME}}", text).encode('latin1', 'ignore').decode('utf8', 'ignore')
-		return self.scrubber.clean(_text)
+		_text = self.scrubber.clean(text)
+		return re.sub(r'@\S*', "{{USERNAME}}", text).encode('latin1', 'ignore').decode('utf8', 'ignore')
 
 	@staticmethod
 	def ph_num(n:int):
@@ -224,6 +229,7 @@ class FBParser(SMParser):
 	'''Social Media Parser class for Facebook data, v2 Schema'''
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
+		self.scrubber_update()
 
 	def parse_profile_metadata(self):
 		logging.info('Parsing FB profile metadata')
@@ -251,6 +257,7 @@ class FBParser(SMParser):
 		react_header = ['Type', 'Total']
 		react_header.extend(categories)
 		reactions = data.reactions_v2
+		reaction_counts = dict()
 		try:
 			#.timestamp;  .title;   .data[0].reaction.reaction;  .data[0].reaction.actor
 			#Per Client: Gather counts by type over the range; don't concat titles or agg by week (for now)
@@ -430,9 +437,9 @@ class FBParser(SMParser):
 		self.parse_reactions()
 		self.parse_posts()
 		self.parse_profile_updates()
-		#if input(f'Scrub & save {len(self.posts_media)} FB images?') == 'Y':
-		logging.info(f'Scrub & save {len(self.posts_media)} FB images')
-		super().scrub_and_save_media(self.posts_media)
+		if sg.popup_yes_no(f'Scrub & save {len(self.posts_media)} FB images?') == 'Yes':
+			logging.info(f'Scrub & save {len(self.posts_media)} FB images')
+			super().scrub_and_save_media(self.posts_media)
 		return None
 
 #%%
@@ -440,6 +447,7 @@ class IGParser(SMParser):
 	'''Social Media Parser class for Instagram data, v2 Schema'''
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
+		self.scrubber_update()
     
 	def parse_profile_metadata(self):
 		logging.info('Parsing IG profile metadata')
@@ -544,21 +552,12 @@ class IGParser(SMParser):
 		self.parse_follow()
 		self.parse_comments()
 		self.parse_posts()
-		#if input(f'Scrub & save {len(self.posts_media)} IG images?') == 'Y':
-		logging.info(f'Scrub & save {len(self.posts_media)} IG images')
-		super().scrub_and_save_media(self.posts_media)
+		if sg.popup_yes_no(f'Scrub & save {len(self.posts_media)} IG images?') == 'Yes':
+			logging.info(f'Scrub & save {len(self.posts_media)} IG images')
+			super().scrub_and_save_media(self.posts_media)
 		return None
 
-'''class TTParser(SMParser):
-	Parser class for TikTok user data
-	def __init__(self, person_name, person_alias, zip_path, home_dir=None):
-		pass    
 
-class SCParser(SMParser):
-	Parser class for SnapChat data
-	def __init__(self, person_name, person_alias, zip_path, home_dir=None):
-		pass    
-'''
 #%%
 def main_test():
 	#For Testing

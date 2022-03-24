@@ -1,6 +1,7 @@
 #%%
 #smparser-classes2.py
 from smparser_classes import SMParser
+import logging
 #%%
 class TTParser(SMParser):
     '''Parser class for TikTok user data'''
@@ -12,8 +13,8 @@ class TTParser(SMParser):
         data = (super().get_txt('Profile','Profile Info'))[0]
         header = ['Profile Item', 'Value']
         self.username = data["Username"]
-	    data['Birthdate'] = {{BIRTHDAY}}
-	    payload = [{'Profile Item':k, 'Value': self.scrubber.clean(v)} for k,v in data] 
+        data['Birthdate'] = '{{BIRTHDAY}}'
+        payload = [{'Profile Item':k, 'Value': self.scrubber.clean(v)} for k,v in data] 
         super().genCSV('TT_Profile', header, payload)
         return None
 		
@@ -43,7 +44,7 @@ class TTParser(SMParser):
         #Note: No dates/times
         fht = [ht['Hashtag Name'] for ht in data2]
         for ht in data:
-		    ht['Favorite'] = 'Yes' if (ht['Hashtag Name'] in fht) else ''
+            ht['Favorite'] = 'Yes' if (ht['Hashtag Name'] in fht) else ''
         super().genCSV('TT_hashtags', header, data)
         return None
 
@@ -80,7 +81,7 @@ class TTParser(SMParser):
         fv = [vid['Video Link'] for vid in data2]
         lk = [vid['Video Link'] for vid in data3]
         for vid in data:
-		    vid['Favorite'] = 'Yes' if (vid['Video Link'] in fv) else ''
+            vid['Favorite'] = 'Yes' if (vid['Video Link'] in fv) else ''
             vid['Liked'] = 'Yes' if (vid['Video Link'] in lk) else ''
         super().genCSV('TT_video_browing', header, data)
         return None
@@ -107,10 +108,10 @@ class TTParser(SMParser):
         return None
     
     def parse_TT_data(self):
-		self.parse_profile_metadata()
-		self.parse_follow()
-		self.parse_hashtags()
-		self.parse_user_searches()
+        self.parse_profile_metadata()
+        self.parse_follow()
+        self.parse_hashtags()
+        self.parse_user_searches()
         self.parse_user_likes()
         self.parse_video_browsing()
         self.parse_comments_from_others()
@@ -148,23 +149,35 @@ class SCParser(SMParser):
     def parse_profile_metadata(self):
         logging.info('Parsing SC profile metadata')
         data = super().get_json('','user_profile')
-        '''header = ['Profile Item', 'Value']
+        header = ['Profile Item', 'Value']
         self.username = data["Username"]
-	    data['Birthdate'] = {{BIRTHDAY}}
-	    payload = [{'Profile Item':k, 'Value': self.scrubber.clean(v)} for k,v in data] 
-        '''super().genCSV('SC_Profile', header, payload)
+        data['Birthdate'] = '{{BIRTHDAY}}'
+        payload = [{'Profile Item':k, 'Value': self.scrubber.clean(v)} for k,v in data] 
+        super().genCSV('SC_Profile', header, payload)
         return None
 
     def parse_follow(self):
-		'''Parsing SC followers - Aggregated Total counts'''
-		logging.info("Parsing SC Follow")
-		data = super().get_json('', 'friends')
-		#data2 = super().get_json('followers_and_following', 'following')
-		header = ['Friends', 'Blocked', 'Pending']
-		payload = [ {'Friends': len(data.friends)},
+        '''Parsing SC followers - Aggregated Total counts'''
+        logging.info("Parsing SC Follow")
+        data = super().get_json('', 'friends')
+        #data2 = super().get_json('followers_and_following', 'following')
+        header = ['Friends', 'Blocked', 'Pending']
+        payload = [ {'Friends': len(data.friends)},
                     {'Blocked': len(data.blocked)},
                     {'Pending': len(data.pending)}] 
-		super().genCSV("SC_follow", header, payload)
+        super().genCSV("SC_follow", header, payload)
+
+    def parse_friends(self):
+        '''Parse SC Friends - Aggregated counts/totals'''
+        logging.info(f'Parsing {self.username} SC friends metadata')
+        data = self.get_json('json','friends')
+        #data2 = self.get_json('friends_and_followers','removed_friends')
+        header = ['Total Friends', 'Removed Friends']
+        payload = [
+            {'Total Friends': len(data.friends), 
+            'Removed Friends': ''}]  #len(data2.deleted_friends_v2)}]
+        self.genCSV("FB_friends", header, payload)
+        return None
     '''
    X friends.json
     ranking.json
@@ -179,20 +192,4 @@ class SCParser(SMParser):
     type of content participant is interacting with = ranking.json OR user_profile.json under "Discover Channels Viewed" and "Interest Categories" OR subscriptions.json "
    X number of followers = friends.json
     number of views on participant's posts = story_history.json
-<<<<<<< HEAD
-    friend requests sent, deleted users and blocked users, and ignored snapchatters by participant = ??'''
-
-	def parse_friends(self):
-		'''Parse SC Friends - Aggregated counts/totals'''
-		logging.info(f'Parsing {self.username} SC friends metadata')
-		data = self.get_json('json','friends')
-		#data2 = self.get_json('friends_and_followers','removed_friends')
-		friends_header = ['Total Friends', 'Removed Friends']
-		payload = [
-			{'Total Friends': len(data.friends), 
-			'Removed Friends': len(data2.deleted_friends_v2)}]
-		self.genCSV("FB_friends", friends_header, payload)
-		return None
-=======
    X friend requests sent, deleted users and blocked users, and ignored snapchatters by participant = ??'''
->>>>>>> pjs-dev
