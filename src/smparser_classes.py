@@ -178,7 +178,7 @@ class SMParser():
 	def clean_text(self, text:str):
 		'''Scrub PII from text string'''
 		_text = self.scrubber.clean(text)
-		return re.sub(r'@\S*', "{{USERNAME}}", text).encode('latin1', 'ignore').decode('utf8', 'ignore')
+		return re.sub(r'@\S*', "{{USERNAME}}", _text).encode('latin1', 'ignore').decode('utf8', 'ignore')
 
 	@staticmethod
 	def ph_num(n:int):
@@ -233,26 +233,26 @@ class FBParser(SMParser):
 
 	def parse_profile_metadata(self):
 		logging.info('Parsing FB profile metadata')
-		data = super().get_json('profile_information','profile_information')
+		data = self.get_json('profile_information','profile_information')
 		self.username = data.profile_v2.name.full_name
 		return None
 
 	def parse_friends(self):
 		'''Parse FB Friends - Aggregated counts/totals'''
 		logging.info(f'Parsing {self.username} FB friends metadata')
-		data = super().get_json('friends_and_followers','friends')
-		data2 = super().get_json('friends_and_followers','removed_friends')
+		data = self.get_json('friends_and_followers','friends')
+		data2 = self.get_json('friends_and_followers','removed_friends')
 		friends_header = ['Total Friends', 'Removed Friends']
 		payload = [
 			{'Total Friends': len(data.friends_v2), 
 			'Removed Friends': len(data2.deleted_friends_v2)}]
-		super().genCSV("FB_friends", friends_header, payload)
+		self.genCSV("FB_friends", friends_header, payload)
 		return None
 	
 	def parse_reactions(self):
 		'''Parse FB Reactions, aggregating totals by Type and Category'''
 		logging.info(f'Parsing {self.username} FB reactions metadata')
-		data = super().get_json('comments_and_reactions','posts_and_comments')
+		data = self.get_json('comments_and_reactions','posts_and_comments')
 		categories = ['photo','comment','post','link','album','video','other']
 		react_header = ['Type', 'Total']
 		react_header.extend(categories)
@@ -262,7 +262,7 @@ class FBParser(SMParser):
 			#.timestamp;  .title;   .data[0].reaction.reaction;  .data[0].reaction.actor
 			#Per Client: Gather counts by type over the range; don't concat titles or agg by week (for now)
 			#TODO: refactor this in Pandas pivot?
-			reactions_inrange = [r for r in reactions if super().in_date_range(datetime.fromtimestamp(r.timestamp))]
+			reactions_inrange = [r for r in reactions if self.in_date_range(datetime.fromtimestamp(r.timestamp))]
 			f_reaction_date = lambda r: (datetime.fromtimestamp(r.timestamp)).date()
 			f_reaction_type = lambda r: r.data[0].reaction.reaction
 			def f_extract_category(react, rcat='other'):
@@ -282,27 +282,27 @@ class FBParser(SMParser):
 				rc['Total'] = reaction_totals[rtype]
 		except Exception as e:
 			logging.error(f'Error parsing FB reaction: {type(e).__name__}: {e}')
-		super().genCSV("FB_reactions", react_header, list(reaction_counts.values()))
+		self.genCSV("FB_reactions", react_header, list(reaction_counts.values()))
 		return None
 	
 	def parse_posts(self):
 		'''Parsing of Facebook posts; Scrubbing captions & blurring photos'''
 		logging.info(f'Parsing {self.username} FB posts metadata')
 		posts_header = ['Date', 'Time', 'Location', 'Post', 'Caption', 'Subject Comments', 'Friend Comments']
-		posts = super().get_json('posts','your_posts_1')
+		posts = self.get_json('posts','your_posts_1')
 		payload = list()
 		for i, post in enumerate(posts):
 			try:
 				logging.debug(f'Parsing {i} of {len(posts)} FB posts...')
 				caption = list()
 				ts = post.timestamp
-				pts, pdate, ptime = super().parse_time(ts)
-				if not super().in_date_range(pts): continue
+				pts, pdate, ptime = self.parse_time(ts)
+				if not self.in_date_range(pts): continue
 				if hasattr(post, 'data'):
 					if len(post.data) > 0 and hasattr(post.data[0], 'post'):
-						caption.append(super().clean_text(post.data[0].post))
+						caption.append(self.clean_text(post.data[0].post))
 				if hasattr(post, 'title'):
-					caption.append(super().clean_text(post.title))
+					caption.append(self.clean_text(post.title))
 				payload.append({'Date': pdate, 'Time': ptime, 
 								'Location': 'Profile', 'Post': 'N/A',
 								'Caption': '; '.join(caption), 'Friend Comments': '',
@@ -316,9 +316,9 @@ class FBParser(SMParser):
 						media_fp = att.media.uri
 						caption = [att.media.title]
 
-						img_ext = super().parse_img_ext(Path(media_fp))
+						img_ext = self.parse_img_ext(Path(media_fp))
 						if img_ext is None: continue
-						out_path = self.media_path / 'FB' / f'Post{i}' / f'Photo_{i}_{super().ph_num(j)}{img_ext}'
+						out_path = self.media_path / 'FB' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
 						ph = Media(media_fp, img_ext, pdate, ptime, out_path)
 						self.posts_media.append(ph)
 					elif hasattr(att, 'external_context'):
@@ -332,14 +332,14 @@ class FBParser(SMParser):
 					# Friend Comments, Subject Comments
 					fc, sc = [], []
 					if hasattr(content, 'description'):
-						caption.append(super().clean_text(content.description))
+						caption.append(self.clean_text(content.description))
 					if hasattr(content, 'comments'):
 						for comment in att.media.comments:
 							if self.username in comment.author:
-								sc.append(f'"{super().clean_text(comment.comment)}"')
+								sc.append(f'"{self.clean_text(comment.comment)}"')
 								self.rem_comments.append(comment.comment)
 							else:
-								fc.append(f'"{super().clean_text(comment.comment)}"')
+								fc.append(f'"{self.clean_text(comment.comment)}"')
 					payload.append({'Date': pdate, 'Time': ptime, 
 									'Location': media_fp, 'Post': out_path, 
 									'Caption': '; '.join(caption), 
@@ -348,7 +348,7 @@ class FBParser(SMParser):
 			except Exception as e:
 				logging.error(f"Error parsing FB profile update post: {type(e).__name__}: {e}")
 				continue
-		super().genCSV("FB_posts", posts_header, payload)
+		self.genCSV("FB_posts", posts_header, payload)
 		return None
 
 	def parse_profile_updates(self):
@@ -356,17 +356,17 @@ class FBParser(SMParser):
 		#Future TODO: Can this be consolidated with FB posts?
 		logging.info(f'Parsing {self.username} FB profile updates metadata')
 		posts_header = ['Date', 'Time', 'Location', 'Post', 'Caption', 'Subject Comments', 'Friend Comments']
-		data = super().get_json('profile_information','profile_update_history')
+		data = self.get_json('profile_information','profile_update_history')
 		posts = data.profile_updates_v2
 		payload = list()
 		for i, post in enumerate(posts):
 			try:
 				logging.debug(f'Parsing {i} of {len(posts)} FB profile updates...')
 				ts = post.timestamp
-				pts, pdate, ptime = super().parse_time(ts)
-				if not super().in_date_range(pts): continue
+				pts, pdate, ptime = self.parse_time(ts)
+				if not self.in_date_range(pts): continue
 				if not hasattr(post, 'title'): continue
-				caption = super().clean_text(post.title)
+				caption = self.clean_text(post.title)
 				payload.append({'Date': pdate, 'Time': ptime, 
 								'Location': 'Profile', 'Post': 'N/A',
 								'Caption': caption, 'Friend Comments': '',
@@ -377,19 +377,19 @@ class FBParser(SMParser):
 					if not hasattr(att, 'media'): continue
 					content = att.media
 					media_fp = att.media.uri
-					img_ext = super().parse_img_ext(Path(media_fp))
+					img_ext = self.parse_img_ext(Path(media_fp))
 					if img_ext is None: continue
 					#Friend Comments, Subject Comments
 					fc, sc = [], []
 					if hasattr(content, 'comments'):
 						for comment in att.media.comments:
 							if self.username in comment.author:
-								sc.append(f'"{super().clean_text(comment.comment)}"')
+								sc.append(f'"{self.clean_text(comment.comment)}"')
 								self.rem_comments.append(comment.comment)
 								continue
-							fc.append(f'"{super().clean_text(comment.comment)}"')
+							fc.append(f'"{self.clean_text(comment.comment)}"')
 
-					out_path = self.media_path / 'FB' / f'Post{i}' / f'Photo_{i}_{super().ph_num(j)}{img_ext}'
+					out_path = self.media_path / 'FB' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
 					self.posts_media.append(Media(media_fp, img_ext, pdate, ptime, out_path))
 					payload.append({'Date': pdate, 'Time': ptime, 
 									'Location': media_fp, 'Post': out_path, 
@@ -399,26 +399,26 @@ class FBParser(SMParser):
 			except Exception as e:
 				logging.error(f"Error parsing FB profile update post: {type(e).__name__}: {e}")
 				continue
-		super().genCSV("FB_profile_updates", posts_header, payload)
+		self.genCSV("FB_profile_updates", posts_header, payload)
 		return None
 
 	def parse_comments(self):
 		'''Parsing of FB Comments & Likes'''
 		logging.info(f'Parsing {self.username} FB comments & likes metadata')
-		data = super().get_json('comments_and_reactions','comments')
+		data = self.get_json('comments_and_reactions','comments')
 		comment_header = ['Date', 'Time', 'Author', 'Subject Comments', 'Friend Comments', 'URL']
 		comments = data.comments_v2
 		payload = []
 		for comment in comments:
 			try:
 				ts = comment.timestamp
-				cts, cdate, ctime = super().parse_time(ts)
-				if not super().in_date_range(cts): continue
+				cts, cdate, ctime = self.parse_time(ts)
+				if not self.in_date_range(cts): continue
 				comment_attachment = comment.attachments
 				try:
 					cc = comment.data[0].comment.comment
 					if cc in self.rem_comments: continue
-					comment_text = super().clean_text(cc)
+					comment_text = self.clean_text(cc)
 				except:
 					comment_text = ''
 				payload.append({'Date': cdate, 'Time': ctime,
@@ -427,7 +427,7 @@ class FBParser(SMParser):
 			except Exception as e:
 				logging.error(f'Error parsing FB reaction: {type(e).__name__}: {e}')
 				continue
-		super().genCSV("FB_comments", comment_header, payload)
+		self.genCSV("FB_comments", comment_header, payload)
 		return None
 
 	def parse_FB_data(self):
@@ -439,7 +439,7 @@ class FBParser(SMParser):
 		self.parse_profile_updates()
 		if sg.popup_yes_no(f'Scrub & save {len(self.posts_media)} FB images?') == 'Yes':
 			logging.info(f'Scrub & save {len(self.posts_media)} FB images')
-			super().scrub_and_save_media(self.posts_media)
+			self.scrub_and_save_media(self.posts_media)
 		return None
 
 #%%
@@ -451,14 +451,14 @@ class IGParser(SMParser):
     
 	def parse_profile_metadata(self):
 		logging.info('Parsing IG profile metadata')
-		data = super().get_json('account_information','personal_information')
+		data = self.get_json('account_information','personal_information')
 		self.username = data.profile_user[0].string_map_data.Username.value
 		return None
 	
 	def parse_comments(self):
 		'''Parsing of IG Comments with scrubbed content'''
 		logging.info('Parsing IG comments')
-		data = super().get_json('comments', 'post_comments')
+		data = self.get_json('comments', 'post_comments')
 		comments_header = ['Date', 'Time', 'Content']
 		users_comments_on_own_post = []
 		users_comments_on_other_post = []
@@ -468,10 +468,10 @@ class IGParser(SMParser):
 			ts = c0.timestamp
 			comment_value = c0.value
 			author = comment.title
-			timestring, date, time = super().parse_time(ts)
+			timestring, date, time = self.parse_time(ts)
 			
-			if not super().in_date_range(timestring): continue
-			content = super().clean_text(comment_value)
+			if not self.in_date_range(timestring): continue
+			content = self.clean_text(comment_value)
 			if re.compile(r'^\s*$').match(content): continue
 			row = {"Date":date, "Time":time, "Content":content}
 			if author == self.username:
@@ -480,20 +480,20 @@ class IGParser(SMParser):
 			else:
 				#if users_comments_on_other_post[-1][2] == content: continue
 				users_comments_on_other_post.append(row)
-		super().genCSV("IG_users_comments_on_own_post", comments_header, users_comments_on_own_post)
-		super().genCSV("IG_users_comments_on_other_post", comments_header, users_comments_on_other_post)
+		self.genCSV("IG_users_comments_on_own_post", comments_header, users_comments_on_own_post)
+		self.genCSV("IG_users_comments_on_other_post", comments_header, users_comments_on_other_post)
 		return None
 
 	def parse_follow(self):
 		'''Parsing followers - Aggregated Total counts'''
 		logging.info("Parsing IG Follow")
-		data = super().get_json('followers_and_following', 'followers')
-		data2 = super().get_json('followers_and_following', 'following')
+		data = self.get_json('followers_and_following', 'followers')
+		data2 = self.get_json('followers_and_following', 'following')
 		follow_header = ['Followers', 'Following']
 		payload = [
 			{'Followers': len(data.relationships_followers), 
 			'Following': len(data2.relationships_following)}]
-		super().genCSV("IG_follow", follow_header, payload)
+		self.genCSV("IG_follow", follow_header, payload)
 		return None
 
 	def parse_posts(self):
@@ -501,50 +501,50 @@ class IGParser(SMParser):
 		logging.info('Parsing IG posts')
 		posts_header = ["Date", "Time", "ImgPath", "Caption", "Likes", "Comments"]
 		#--- PHOTOS
-		posts_data = super().get_json("content", "posts_1")
+		posts_data = self.get_json("content", "posts_1")
 		for i, post in enumerate(posts_data):
 			ts = post.creation_timestamp if hasattr(post, 'creation_timestamp') else None
 			comment = post.title if hasattr(post, 'title') else ""
 			for j, photo in enumerate(post.media):
 				ts = ts if ts is not None else photo.creation_timestamp
-				pts, pdate, ptime = super().parse_time(ts)
-				if not super().in_date_range(pts): continue
-				comment += super().clean_text(photo.title)
+				pts, pdate, ptime = self.parse_time(ts)
+				if not self.in_date_range(pts): continue
+				comment += self.clean_text(photo.title)
 				img_fp = photo.uri
-				img_ext = super().parse_img_ext(Path(img_fp))
+				img_ext = self.parse_img_ext(Path(img_fp))
 				if img_ext is None: continue
-				out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{super().ph_num(j)}{img_ext}'
+				out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
 				self.posts_media.append(Media(img_fp, img_ext, pdate, ptime, out_path, comment))
 
 		#--- STORIES
 		logging.info("Parsing IG stories")
-		stories_data = super().get_json("content", "stories")
+		stories_data = self.get_json("content", "stories")
 		#sposts.ig_stories[0].uri
-		valid_stories = [s for s in stories_data.ig_stories if super().in_date_range(datetime.fromtimestamp(s.creation_timestamp))]
+		valid_stories = [s for s in stories_data.ig_stories if self.in_date_range(datetime.fromtimestamp(s.creation_timestamp))]
 		for i, story in enumerate(valid_stories):
 			img_fp = story.uri
-			sts, sdate, stime = super().parse_time(story.creation_timestamp)
-			img_ext = super().parse_img_ext(Path(img_fp))
-			if not super().in_date_range(sts) or img_ext is None: continue
-			out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{super().ph_num(j)}{img_ext}'
-			comment = super().clean_text(story.title)
+			sts, sdate, stime = self.parse_time(story.creation_timestamp)
+			img_ext = self.parse_img_ext(Path(img_fp))
+			if not self.in_date_range(sts) or img_ext is None: continue
+			out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
+			comment = self.clean_text(story.title)
 			self.posts_media.append(Media(img_fp, img_ext, sdate, stime, out_path, comment))
 
 		#--- PROFILE PICS
 		logging.info("Parsing IG profile pic")
-		profile_pic_data = super().get_json("content", "profile_photos")
+		profile_pic_data = self.get_json("content", "profile_photos")
 		for i, photo in enumerate(profile_pic_data.ig_profile_picture):
 			img_fp = photo.uri
-			img_ext = super().parse_img_ext(Path(img_fp))
-			out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{super().ph_num(j)}{img_ext}'
-			pts, pdate, ptime = super().parse_time(photo.creation_timestamp)
-			comment = super().clean_text(photo.title)
+			img_ext = self.parse_img_ext(Path(img_fp))
+			out_path = self.media_path / 'IG' / f'Post{i}' / f'Photo_{i}_{self.ph_num(j)}{img_ext}'
+			pts, pdate, ptime = self.parse_time(photo.creation_timestamp)
+			comment = self.clean_text(photo.title)
 			self.posts_media.append(Media(img_fp, img_ext, pdate, ptime, out_path, comment))
 		
 		#--- Build the csv
 		logging.debug(self.posts_media)
 		posts_row_data = [r.__dict__ for r in self.posts_media]
-		super().genCSV("IG_Posts", posts_header, posts_row_data)
+		self.genCSV("IG_Posts", posts_header, posts_row_data)
 		return None
 
 	def parse_IG_data(self):
@@ -554,7 +554,7 @@ class IGParser(SMParser):
 		self.parse_posts()
 		if sg.popup_yes_no(f'Scrub & save {len(self.posts_media)} IG images?') == 'Yes':
 			logging.info(f'Scrub & save {len(self.posts_media)} IG images')
-			super().scrub_and_save_media(self.posts_media)
+			self.scrub_and_save_media(self.posts_media)
 		return None
 
 
