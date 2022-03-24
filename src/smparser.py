@@ -10,6 +10,7 @@ from types import SimpleNamespace
 from dateutil.relativedelta import relativedelta
 import PySimpleGUI as sg
 from smparser_classes import IGParser, FBParser
+from smparser_classes2 import TTParser, SCParser
 #%%
 def resource_path(relative_path):
 	'''Discovers the temporary extract folder for the Executable,
@@ -69,8 +70,22 @@ def GUI():
 	window.close()
 	return values
 
-def parse_main():
-	candidate_info = GUI()
+fake_GUI_output = {
+	'person_first_name':	'Maggie',
+	'person_last_name':		'Nail',
+	'person_alias':			'megs',
+	'last_date':			'2022-03-24',
+	'months_back':			'24',
+	'fp_person':			r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\Good Test\Person9',
+	'FByes': False, 'IGyes': False, 'TTyes': True, 'SCyes': False,
+	'FBzip':				r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\Good Test\Person1\Inbox\FB-facebook-maggienail16.zip',
+	'IGzip':				r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\Good Test\Person1\Inbox\IG-volunteer1-maggie.zip',
+	'TTzip':				r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\TikTok\TikTok1.zip',
+	'SCzip':				''
+}
+
+def main_sm_parsing(TESTMODE=False):
+	candidate_info = GUI() if not TESTMODE else fake_GUI_output
 	ci = SimpleNamespace(**candidate_info)
 	logfile = Path(ci.fp_person) / 'parser.log'
 	logging.basicConfig(format='%(asctime)s|%(levelname)s:%(message)s', filename=logfile, level=logging.DEBUG, encoding='utf-8')
@@ -82,23 +97,39 @@ def parse_main():
 	#Launch Parsers
 	if ci.FByes:
 		FB = FBParser(	last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
-						zip_path=ci.FBzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=None) #ci.last_date)
+						zip_path=ci.FBzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
 		logging.info(f'{FB}')
-		FB.parse_FB_data()
-		logging.info('FB Parsing complete')
-		sg.popup_timed('FB Parsing complete', non_blocking=True)
+		FB.parse_data()
+		logging.info('FB Parsing complete'); sg.popup_timed('FB Parsing complete', non_blocking=True)
 	else:
 		logging.info('Skipped FB')
 
 	if ci.IGyes:
 		IG = IGParser(	last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
-						zip_path=ci.IGzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=None) #ci.last_date)
+						zip_path=ci.IGzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
 		logging.info(f'{IG}')
-		IG.parse_IG_data() 
-		logging.info('IG Parsing complete')
-		sg.popup_timed('IG Parsing complete', non_blocking=True)
+		IG.parse_data() 
+		logging.info('IG Parsing complete'); sg.popup_timed('IG Parsing complete', non_blocking=True)
 	else:
 		logging.info('Skipped IG')
+
+	if ci.TTyes:
+		TT = TTParser(	last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
+						zip_path=ci.TTzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
+		logging.info(f'{TT}')
+		TT.parse_data()
+		logging.info('TT Parsing complete'); sg.popup_timed('TT Parsing complete', non_blocking=True)
+	else:
+		logging.info('Skipped TT'); sg.popup_timed('Skipped TT', non_blocking=True)
+
+	if ci.SCyes:
+		SC = SCParser(	last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
+						zip_path=ci.SCzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
+		logging.info(f'{SC}')
+		SC.parse_data() 
+		logging.info('SC Parsing complete'); sg.popup_timed('SC Parsing complete', non_blocking=True)
+	else:
+		logging.info('Skipped SC'); sg.popup_timed('Skipped TT', non_blocking=True)
 
 if __name__ == '__main__':
 	#Setup GUI and Logging settings
@@ -108,34 +139,9 @@ if __name__ == '__main__':
 	tempdir = Path.home() / "AppData" / "Local" / "SMParser"
 	if not tempdir.exists(): tempdir.mkdir()
 	HISTORY = f"{tempdir / 'history.json'}"
-	parse_main()
+	
+	main_sm_parsing()
 	print('al fin')
 
 #us = sg.UserSettings()
 #sg.user_settings_filename(path=tempdir)
-def parse_main_old():
-	'''#Request path for output files
-	fp_person = Path(sg.popup_get_folder('Select the folder for the Person.\n(Outbox folder will be created here)\n(Social Media zip files are typically here also)', 
-					title='Person Folder', history=True, history_setting_filename=HISTORY, image=LOGO))
-	logfile = f"{fp_person / 'parser.log'}"
-	logging.basicConfig(format="%(asctime)s|%(levelname)s:%(message)s", filename=logfile, level=logging.DEBUG) # encoding='utf-8')
-	#Request parse instance information (IDs, date range)
-	person_first_name = sg.popup_get_text("Enter Person's first name", title="Person's First Name", image=LOGO)
-	person_last_name = sg.popup_get_text("Enter Person's last name", title="Person's Last Name", image=LOGO)
-	person_alias = sg.popup_get_text('Enter an Alias for person', title='Alias')
-	_last_date = sg.popup_get_date(title='Choose End Date (Default is Today)', no_titlebar=False)
-	if _last_date is not None:
-		m,d,y = _last_date
-		last_date = datetime(y,m,d)
-	else:
-		last_date = datetime.today()
-	_months_back = sg.popup_get_text('How many months back?', "Months Back", '24')
-	months_back = int(_months_back) if (_months_back.isnumeric() and int(_months_back) > 0) else 24
-	#Request paths to input data zip files
-	FBzip = sg.popup_get_file(	'Select Facebook(FB) zip file', title='FB Zip file', 
-								default_path=f"{fp_person / 'Inbox'}", default_extension='.zip', 
-								history=True, history_setting_filename=HISTORY)  
-	IGzip = sg.popup_get_file(	'Select Instagram(IG) zip file', title='IG Zip file', 
-								default_path=f"{fp_person / 'Inbox'}", default_extension='.zip', 
-								history=True, history_setting_filename=HISTORY) 
-	'''

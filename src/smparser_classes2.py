@@ -2,35 +2,43 @@
 #smparser-classes2.py
 from smparser_classes import SMParser
 import logging
+from dateutil import parser as dt_parser
 #%%
 class TTParser(SMParser):
     '''Parser class for TikTok user data'''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.scrubber_update()
 
     def parse_profile_metadata(self):
         logging.info('Parsing TT profile metadata')
-        data = (super().get_txt('Profile','Profile Info'))[0]
+        data = (self.get_txt('Profile','Profile Info'))[0]
         header = ['Profile Item', 'Value']
         self.username = data["Username"]
         data['Birthdate'] = '{{BIRTHDAY}}'
-        payload = [{'Profile Item':k, 'Value': self.scrubber.clean(v)} for k,v in data] 
-        super().genCSV('TT_Profile', header, payload)
+        payload = [{'Profile Item':k, 'Value': self.clean_text(v)} for k,v in data.items()] 
+        self.genCSV('TT_Profile', header, payload)
         return None
-		
+
+    def filter_by_date(self, data):     #data: list[dict{'Date'}]
+        '''Parses the string date into a Datetime, filters down to records within date range'''
+        #_dated_data = [c.update(Date = dt_parser.parse(c['Date'])) for c in data]
+        return [c for c in data if self.in_date_range(dt_parser.parse(c['Date']))]
+
     def parse_follow(self):
         '''Parsing TT follow activity - Aggregated Total counts'''
         logging.info('Parsing TT Follow')
         header = ['Followers', 'Following']
         #Follower.txt -> {Date, Username}
         #Following.txt -> {Date, Username}
-        data = super().get_txt('Activity', 'Follower')
-        data2 = super().get_txt('Activity', 'Following')
-        #TODO: Parse date time / filter within date range
+        data = self.get_txt('Activity', 'Follower')
+        fdata = self.filter_by_date(data)
+        data2 = self.get_txt('Activity', 'Following')
+        fdata2 = self.filter_by_date(data2)
         payload = [
-            {'Followers': len(data), 
-            'Following': len(data2)}]
-        super().genCSV('TT_follow', header, payload)
+            {'Followers': len(fdata), 
+            'Following': len(fdata2)}]
+        self.genCSV('TT_follow', header, payload)
         return None
 
     def parse_hashtags(self):
@@ -39,13 +47,13 @@ class TTParser(SMParser):
         header = ['Hashtag Name', 'Hashtag Link', 'Favorite']
         #Hashtag.txt -> {Hashtag Name, Hashtag Link}
         #Favorite HashTags.txt -> {Hashtag Name, Hashtag Link}
-        data = super().get_txt('Activity', 'Hashtag')
-        data2 = super().get_txt('Activity', 'Favorite HashTags')
+        data = self.get_txt('Activity', 'Hashtag')
+        data2 = self.get_txt('Activity', 'Favorite HashTags')
         #Note: No dates/times
         fht = [ht['Hashtag Name'] for ht in data2]
         for ht in data:
             ht['Favorite'] = 'Yes' if (ht['Hashtag Name'] in fht) else ''
-        super().genCSV('TT_hashtags', header, data)
+        self.genCSV('TT_hashtags', header, data)
         return None
 
     def parse_user_searches(self):
@@ -53,9 +61,10 @@ class TTParser(SMParser):
         #Searches.txt -> {Date, Search Term}
         logging.info('Parsing TT Search Activity')
         header = ['Date', 'Search Term']
-        data = super().get_txt('Activity', 'Searches')
-        #TODO: Parse date time / filter within date range
-        super().genCSV('TT_searches', header, data)
+        data = self.get_txt('Activity', 'Searches')
+        #Filter within date range
+        payload = self.filter_by_date(data)
+        self.genCSV('TT_searches', header, payload)
         return None
 
     def parse_user_likes(self):
@@ -63,9 +72,10 @@ class TTParser(SMParser):
         #Likes.txt -> {Date, Video Link}
         logging.info('Parsing TT Search Activity')
         header = ['Date', 'Video Link']
-        data = super().get_txt('Activity', 'Likes')
-        #TODO: Parse date time / filter within date range
-        super().genCSV('TT_likes', header, data)
+        data = self.get_txt('Activity', 'Likes')
+        #Filter within date range
+        payload = self.filter_by_date(data)
+        self.genCSV('TT_likes', header, payload)
         return None
 
     def parse_video_browsing(self):
@@ -74,16 +84,17 @@ class TTParser(SMParser):
         #Video Browsing.txt -> {Date, Video Link}
         #Favorite Videos.txt -> {Date, Video Link}
         header = ['Date', 'Video Link', 'Favorite']
-        data = super().get_txt('Activity', 'Video Browsing')
-        data2 = super().get_txt('Activity', 'Favorite Videos')
-        data3 = super().get_txt('Activity', 'Likes')
-        #TODO: Parse date time / filter within date range
-        fv = [vid['Video Link'] for vid in data2]
+        data = self.get_txt('Activity', 'Video Browsing')
+        data2 = self.get_txt('Activity', 'Favorite Videos')
+        data3 = self.get_txt('Activity', 'Likes')
+        #Filter within date range & correlate Favs + Likes
+        fvids = self.filter_by_date(data)
+        fav = [vid['Video Link'] for vid in data2]
         lk = [vid['Video Link'] for vid in data3]
-        for vid in data:
-            vid['Favorite'] = 'Yes' if (vid['Video Link'] in fv) else ''
+        for vid in fvids:
+            vid['Favorite'] = 'Yes' if (vid['Video Link'] in fav) else ''
             vid['Liked'] = 'Yes' if (vid['Video Link'] in lk) else ''
-        super().genCSV('TT_video_browing', header, data)
+        self.genCSV('TT_video_browing', header, fvids)
         return None
 
     def parse_comments_from_others(self):
@@ -91,10 +102,11 @@ class TTParser(SMParser):
         # Comments.txt -> {Date, Comment}
         logging.info('Parsing TT Comments from others')
         header = ['Date', 'Comment']
-        data = super().get_txt('Comments', 'Comments')
-        #TODO: Parse date time / filter within date range
-        #TODO: Scrub comment text
-        super().genCSV('TT_searches', header, data)
+        data = self.get_txt('Comments', 'Comments')
+        #Filter within date range & scrub comment
+        all_comments = self.filter_by_date(data)
+        _payload = [c.update(Comment = self.clean_text(c['Comment'])) for c in all_comments]
+        self.genCSV('TT_comments', header, all_comments)
         return None
 
     def parse_user_videos(self):
@@ -102,12 +114,13 @@ class TTParser(SMParser):
         # Videos.txt -> {Date, Video Link, Like(s)}
         logging.info('Parsing TT Videos posted by user')
         header = ['Date', 'Video Link', 'Like(s)']
-        data = super().get_txt('Videos', 'Videos')
-        #TODO: Parse date time / filter within date range
-        super().genCSV('TT_videos', header, data)
+        data = self.get_txt('Videos', 'Videos')
+        #Filter within date range
+        payload = self.filter_by_date(data)
+        self.genCSV('TT_videos', header, payload)
         return None
     
-    def parse_TT_data(self):
+    def parse_data(self):
         self.parse_profile_metadata()
         self.parse_follow()
         self.parse_hashtags()
@@ -145,27 +158,28 @@ class SCParser(SMParser):
     '''Parser class for SnapChat data'''
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.scrubber_update()
 
     def parse_profile_metadata(self):
         logging.info('Parsing SC profile metadata')
-        data = super().get_json('','user_profile')
+        data = self.get_json('','user_profile')
         header = ['Profile Item', 'Value']
         self.username = data["Username"]
         data['Birthdate'] = '{{BIRTHDAY}}'
         payload = [{'Profile Item':k, 'Value': self.scrubber.clean(v)} for k,v in data] 
-        super().genCSV('SC_Profile', header, payload)
+        self.genCSV('SC_Profile', header, payload)
         return None
 
     def parse_follow(self):
         '''Parsing SC followers - Aggregated Total counts'''
         logging.info("Parsing SC Follow")
-        data = super().get_json('', 'friends')
-        #data2 = super().get_json('followers_and_following', 'following')
+        data = self.get_json('', 'friends')
+        #data2 = self.get_json('followers_and_following', 'following')
         header = ['Friends', 'Blocked', 'Pending']
         payload = [ {'Friends': len(data.friends)},
                     {'Blocked': len(data.blocked)},
                     {'Pending': len(data.pending)}] 
-        super().genCSV("SC_follow", header, payload)
+        self.genCSV("SC_follow", header, payload)
 
     def parse_friends(self):
         '''Parse SC Friends - Aggregated counts/totals'''

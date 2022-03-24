@@ -45,7 +45,7 @@ class SMParser():
 		self.posts_media = list()
 
 		self.months_back = int(months_back) if months_back is not None else 24
-		self.last_date = last_date if last_date is not None else datetime.today()
+		self.last_date = dateutil.parser.parse(last_date) if last_date is not None else datetime.today()
 		self._date_calc()
 		self._sys_check()
 		self._setup_scrubber()
@@ -113,9 +113,9 @@ class SMParser():
 	def get_txt(self, folder, filename):
 		'''Retrieves txt data file and returns a List[Dict]'''
 		txt_path = self.zip_root / folder / f'{filename}.txt'
-		_txt_data = txt_path.read_text()
+		_txt_data = txt_path.read_text(encoding="utf-8")
 		recs = _txt_data.split('\n\n')
-		drecs = [{k:v for k,v in [p.split(': ',1) for p in t.split('\n')]} for t in recs]
+		drecs = [{k:v for k,v in [p.split(': ',1) for p in t.split('\n')]} for t in recs if len(t)>2]
 		return drecs	#SimpleNamespace(**drecs)
 
 	def parse_img_ext(self, mediafp):
@@ -430,7 +430,7 @@ class FBParser(SMParser):
 		self.genCSV("FB_comments", comment_header, payload)
 		return None
 
-	def parse_FB_data(self):
+	def parse_data(self):
 		self.rem_comments = list()
 		self.parse_profile_metadata()
 		self.parse_friends()
@@ -547,7 +547,7 @@ class IGParser(SMParser):
 		self.genCSV("IG_Posts", posts_header, posts_row_data)
 		return None
 
-	def parse_IG_data(self):
+	def parse_data(self):
 		self.parse_profile_metadata()
 		self.parse_follow()
 		self.parse_comments()
