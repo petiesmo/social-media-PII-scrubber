@@ -8,8 +8,6 @@ import itertools
 import json
 import logging
 from pathlib import Path
-#import pdb
-#pdb.set_trace()
 import platform
 import re
 from types import SimpleNamespace
@@ -142,7 +140,7 @@ class SMParser():
 
 		for i, photo in enumerate(media_list):
 			#Progress Meter
-			if not sg.one_line_progress_meter('Media Anonymizer', i+1, MAX, 'KEY', 'Try Clicking Cancel Button') and i+1 != MAX:
+			if not sg.one_line_progress_meter('Media Anonymizer', i+1, MAX, 'Blurring Faces in Media', f'{photo.ImgPath.name}') and i+1 != MAX:
 				sg.popup_auto_close('Cancelling your loop...')
 				break
 			try:

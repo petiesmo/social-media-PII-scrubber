@@ -42,7 +42,7 @@ def GUI():
 								[sg.CB('FB', default=True, enable_events=True, k='FByes')],
 								[sg.CB('IG', default=True, enable_events=True, k='IGyes')],
 								[sg.CB('TT', default=True, enable_events=True, k='TTyes')],
-								[sg.CB('SC', default=True, enable_events=True, k='SCyes')]]),
+								[sg.CB('SC', default=False, enable_events=True, k='SCyes')]]),
 					sg.Column([	[sg.T('Zip File Paths:')],
 								[sg.I(key='FBzip', justification='right'), sg.FileBrowse('<<< FB')],
 								[sg.I(key='IGzip', justification='right'), sg.FileBrowse('<<< IG')],
@@ -123,11 +123,12 @@ def main_sm_parsing(TESTMODE=False):
 		logging.info('Skipped TT'); sg.popup_timed('Skipped TT', non_blocking=True)
 
 	if ci.SCyes:
-		SC = SCParser(	last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
+		sg.popup_auto_close('SnapChat parser COMING SOON')
+		'''SC = SCParser(	last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
 						zip_path=ci.SCzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
 		logging.info(f'{SC}')
 		SC.parse_data() 
-		logging.info('SC Parsing complete'); sg.popup_timed('SC Parsing complete', non_blocking=True)
+		logging.info('SC Parsing complete'); sg.popup_timed('SC Parsing complete', non_blocking=True)'''
 	else:
 		logging.info('Skipped SC'); sg.popup_timed('Skipped TT', non_blocking=True)
 
