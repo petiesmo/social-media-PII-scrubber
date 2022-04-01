@@ -5,6 +5,8 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, date, timedelta
 import itertools
+#import importlib
+from importlib import resources #.read_binary .read_text
 import json
 import logging
 from pathlib import Path
@@ -21,8 +23,10 @@ from PIL import Image, ImageFilter
 import PySimpleGUI as sg
 import scrubadub
 import scrubadub_spacy
-import spacy
-spacy.load('en_core_web_sm')
+#import spacy
+import en_core_web_sm
+#nlp = en_core_web_sm.load()
+
 
 #%%
 class SMParser():
@@ -75,7 +79,7 @@ class SMParser():
 	def _setup_scrubber(cls):
 		cls._scrubber = scrubadub.Scrubber()
 		cls._scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector(model='en_core_web_sm'))
-		cls._scrubber.add_detector(scrubadub.detectors.DateOfBirthDetector(require_context=True))
+		cls._scrubber.add_detector(scrubadub.detectors.DateOfBirthDetector(require_context=False))
 		
 	def scrubber_update(self):
 		custom_detector = scrubadub.detectors.UserSuppliedFilthDetector( [
@@ -134,10 +138,8 @@ class SMParser():
 
 	def scrub_and_save_media(self, media_list):
 		'''Cycles through a List[Media] objects, anonymizing each by blurring faces'''
-		#TODO: Add a Progress Meter?
 		self.problems = []
 		MAX = len(media_list)
-
 		for i, photo in enumerate(media_list):
 			#Progress Meter
 			if not sg.one_line_progress_meter('Media Anonymizer', i+1, MAX, 'Blurring Faces in Media', f'{photo.ImgPath.name}') and i+1 != MAX:
@@ -219,10 +221,9 @@ class Media():
 	Caption: str = ""
 	#Likes: str = ""	#Likes & Comments removed per Client guidance
 	#Comments: str = ""
-	#Future TODO: Make comments a dict, like **kwargs?
 
 
-#Parse Functions unique to each platform
+#Parsing methods unique to each platform
 class FBParser(SMParser):
 	'''Social Media Parser class for Facebook data, v2 Schema'''
 	def __init__(self, *args, **kwargs):

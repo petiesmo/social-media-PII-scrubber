@@ -2,6 +2,7 @@
 #%%
 from pathlib import Path
 from datetime import datetime
+from importlib import resources
 import logging
 from pprint import pprint
 import sys
@@ -12,17 +13,17 @@ import PySimpleGUI as sg
 from smparser_classes import IGParser, FBParser
 from smparser_classes2 import TTParser, SCParser
 #%%
-def resource_path(relative_path):
-	'''Discovers the temporary extract folder for the Executable,
-		for loading stored images or other data'''
+'''def resource_path(relative_path):
+	#Discovers the temporary extract folder for the Executable,
+		for loading stored images or other data
 	try:
 		base_path = Path(sys._MEIPASS)
 	except Exception:
 		base_path = Path.cwd()
 	return str(base_path / relative_path)
-
+'''
 def GUI():
-		
+	'''Data Entry GUI for one participant record'''
 	_TODAY = datetime.today()
 	TODAY = (_TODAY.month, _TODAY.day, _TODAY.year)
 
@@ -70,6 +71,7 @@ def GUI():
 	window.close()
 	return values
 
+#--- For testing only ---
 fake_GUI_output = {
 	'person_first_name':	'Maggie',
 	'person_last_name':		'Nail',
@@ -134,9 +136,9 @@ def main_sm_parsing(TESTMODE=False):
 
 if __name__ == '__main__':
 	#Setup GUI and Logging settings
-	LOGO = r'./BrownU_logo.png'	#resource_path(r'BrownU_logo.png')
+	LOGO = resources.read_bytes('data', 'BrownU_logo.png')
 	sg.theme('DarkBrown4')
-	logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
+	#logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 	tempdir = Path.home() / "AppData" / "Local" / "SMParser"
 	if not tempdir.exists(): tempdir.mkdir()
 	HISTORY = f"{tempdir / 'history.json'}"
