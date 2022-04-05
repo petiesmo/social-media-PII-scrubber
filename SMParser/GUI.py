@@ -55,8 +55,10 @@ def candidateGUI():
 		#TODO: FIX: window['first_date'].update(datetime(values['<<< End Date']) - relativedelta(months=int(values['months_back'])))
 		if event in (sg.WIN_CLOSED, 'Cancel'):
 			logging.info('The User closed the data entry screen')
-			break
+			window.close()
+			return None
 		if event == 'OK':
+			#window['-TEXT-KEY-'].update(values['-INPUT-'])
 			break
 	window.close()
 	return values

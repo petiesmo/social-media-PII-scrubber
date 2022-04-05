@@ -36,7 +36,8 @@ fake_GUI_output = {
 
 def main_sm_parsing(TESTMODE=False):
 	candidate_info = candidateGUI() if not TESTMODE else fake_GUI_output
-	ci = SimpleNamespace(**candidate_info)
+	if candidate_info is None: return None 
+	ci = SimpleNamespace(**candidate_info) 
 	logfile = Path(ci.fp_person) / 'parser.log'
 	logging.basicConfig(format='%(asctime)s|%(levelname)s:%(message)s', filename=logfile, level=logging.DEBUG) #, encoding='utf-8')
 	#Diagnostics
@@ -82,6 +83,9 @@ def main_sm_parsing(TESTMODE=False):
 	else:
 		logging.info('Skipped SC'); sg.popup_timed('Skipped SC', non_blocking=True)
 
+	return True
+
+	
 if __name__ == '__main__':
 	#Setup GUI and Logging settings
 	tempdir = Path.home() / "AppData" / "Local" / "SMParser"
