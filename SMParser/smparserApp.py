@@ -43,45 +43,48 @@ def main_sm_parsing(TESTMODE=False):
 	#Diagnostics
 	logging.info(f'Person: {ci.person_first_name} {ci.person_last_name}, Alias: {ci.person_alias}')
 	logging.info(f'Last time: {ci.last_date}, Months Back: {ci.months_back}')
-	logging.info(f'FB File: {ci.FBzip}')
-	logging.info(f'IG File: {ci.IGzip}')
+	logging.info(f'FB File: {ci.FBzip}',
+					f'IG File: {ci.IGzip}',
+					f'TT file: {ci.TTzip}',
+					f'SC file: {ci.SCzip}')
 	#Launch Parsers
-	if ci.FByes:
+	if not ci.FByes or not ci.FBzip.suffix=='.zip':
+		logging.info('Skipped FB')
+	else:
 		FB = FBParser(	last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
-						zip_path=ci.FBzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
+					zip_path=ci.FBzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
 		logging.info(f'{FB}')
 		FB.parse_data()
 		logging.info('FB Parsing complete'); sg.popup_timed('FB Parsing complete', non_blocking=True)
-	else:
-		logging.info('Skipped FB')
+		
 
-	if ci.IGyes:
+	if not ci.IGyes or not ci.IGzip.suffix=='.zip':
+		logging.info('Skipped IG')
+	else:
 		IG = IGParser(	last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
-						zip_path=ci.IGzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
+					zip_path=ci.IGzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
 		logging.info(f'{IG}')
 		IG.parse_data() 
 		logging.info('IG Parsing complete'); sg.popup_timed('IG Parsing complete', non_blocking=True)
-	else:
-		logging.info('Skipped IG')
 
-	if ci.TTyes:
+	if not ci.TTyes or or not ci.TTzip.suffix=='.zip':
+		logging.info('Skipped TT'); sg.popup_timed('Skipped TT', non_blocking=True)
+	else:
 		TT = TTParser(	last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
 						zip_path=ci.TTzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
 		logging.info(f'{TT}')
 		TT.parse_data()
 		logging.info('TT Parsing complete'); sg.popup_timed('TT Parsing complete', non_blocking=True)
-	else:
-		logging.info('Skipped TT'); sg.popup_timed('Skipped TT', non_blocking=True)
 
-	if ci.SCyes:
+	if not ci.SCyes or not ci.SCzip.suffix=='.zip':
+		logging.info('Skipped SC'); sg.popup_timed('Skipped SC', non_blocking=True)
+	else:
 		sg.popup_auto_close('SnapChat parser COMING SOON')
 		'''SC = SCParser(	last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
 						zip_path=ci.SCzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
 		logging.info(f'{SC}')
 		SC.parse_data() 
 		logging.info('SC Parsing complete'); sg.popup_timed('SC Parsing complete', non_blocking=True)'''
-	else:
-		logging.info('Skipped SC'); sg.popup_timed('Skipped SC', non_blocking=True)
 
 	return True
 

@@ -362,11 +362,6 @@ class TTParser(SMParserBase):
 		self.genCSV('TT_Profile', header, payload)
 		return None
 
-	def filter_by_date(self, data):     #data: list[dict{'Date'}]
-		'''Parses the string date into a Datetime, filters down to records within date range'''
-		#_dated_data = [c.update(Date = dt_parser.parse(c['Date'])) for c in data]
-		return [c for c in data if self.in_date_range(dt_parser.parse(c['Date']))]
-
 	def parse_follow(self):
 		'''Parsing TT follow activity - Aggregated Total counts'''
 		logging.info('Parsing TT Follow')
@@ -521,22 +516,41 @@ class SCParser(SMParserBase):
         data = self.get_json('', 'friends')
         #data2 = self.get_json('followers_and_following', 'following')
         header = ['Friends', 'Blocked', 'Pending']
-        payload = [ {'Friends': len(data.friends)},
-                    {'Blocked': len(data.blocked)},
-                    {'Pending': len(data.pending)}] 
+        payload = [ {'Friends': len(data.friends),
+                    'Blocked': len(data.blocked),
+                    'Pending': len(data.pending)}
+                    ] 
         self.genCSV("SC_follow", header, payload)
 
     def parse_friends(self):
         '''Parse SC Friends - Aggregated counts/totals'''
         logging.info(f'Parsing {self.username} SC friends metadata')
-        data = self.get_json('json','friends')
+        data = self.get_json('','friends')
         #data2 = self.get_json('friends_and_followers','removed_friends')
         header = ['Total Friends', 'Removed Friends']
         payload = [
             {'Total Friends': len(data.friends), 
             'Removed Friends': ''}]  #len(data2.deleted_friends_v2)}]
-        self.genCSV("FB_friends", header, payload)
+        self.genCSV("SC_friends", header, payload)
         return None
+        
+    def parse_views(self):
+	    '''Parse SC views by type'''
+	    logging.info(f'Parsing {self.username} SC views')
+	    data = self.get_json('','story_history', output='dict')
+	    _fdata = [c for c in data if self.in_date_range(dt_parser.parse(c["View Date"]))]
+	    oth = lambda v: "other" if v == "" else v
+	    payload = Counter([oth(v["Media Type"]) for v in _fdata])
+	    header = payload.keys()
+	    self.genCSV("SC_Views", header, payload)
+	    return None
+	    
+	def parse_ranking(self):
+		logging.info(f'Parsing {self.username} SC rankings')
+	    data = self.get_json('','ranking', output='dict')
+		self.genCSV("SC_Rankings", header, payload)
+		return None
+		
     '''
    X friends.json
     ranking.json

@@ -104,9 +104,15 @@ class SMParserBase():
 		#TODO ? accept either date or datetime
 		return self.first_date <= check_dt <= self.last_date
         
-	def get_json(self, folder, filename):
+	def filter_by_date(self, data, key='date'):     #data: list[dict{'Date'}]
+		'''Parses the string date into a Datetime, filters down to records within date range'''
+		return [c for c in data if self.in_date_range(dt_parser.parse(c[key]))]
+	
+	def get_json(self, folder, filename, output='object'):
 		'''Retrieves json file and returns an Object'''
 		json_path = self.zip_root / folder / f'{filename}.json'
+		if output == 'dict':
+			return json.loads(json_path.read_text())
 		return json.loads(json_path.read_text(), object_hook=lambda d:SimpleNamespace(**d))
 
 	def get_txt(self, folder, filename):
