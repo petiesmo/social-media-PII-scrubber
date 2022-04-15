@@ -3,7 +3,6 @@
 import csv
 from dataclasses import dataclass
 from datetime import datetime
-from importlib import resources #.read_binary .read_text
 import json
 import logging
 from pathlib import Path
@@ -14,16 +13,13 @@ import zipfile
 
 import dateutil
 from dateutil.relativedelta import relativedelta
+from dateutil import parser as dt_parser
 import face_recognition
 import numpy as np
 from PIL import Image, ImageFilter
 import PySimpleGUI as sg
 import scrubadub
 import scrubadub_spacy
-#import spacy
-#import en_core_web_sm
-#nlp = en_core_web_sm.load()
-
 
 #%%
 class SMParserBase():
@@ -44,7 +40,7 @@ class SMParserBase():
 		self.posts_media = list()
 
 		self.months_back = int(months_back) if months_back is not None else 24
-		self.last_date = dateutil.parser.parse(last_date) if last_date is not None else datetime.today()
+		self.last_date = dt_parser.parse(last_date) if last_date is not None else datetime.today()
 		self._date_calc()
 		self._sys_check()
 		self._setup_scrubber()
@@ -77,19 +73,20 @@ class SMParserBase():
 		cls._scrubber = scrubadub.Scrubber()
 		cls._scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector(model='en_core_web_sm'))
 		cls._scrubber.add_detector(scrubadub.detectors.DateOfBirthDetector(require_context=False))
+		logging.debug(cls._scrubber.__dict__)
 		
-	def scrubber_update(self):
-		custom_detector = scrubadub.detectors.UserSuppliedFilthDetector( [
-			{'match': self.last_name, 'filth_type': 'name', 'ignore_case': True},
-			{'match': self.first_name, 'filth_type': 'name', 'ignore_case': True},
-			{'match': self.username, 'filth_type':'name', 'ignore_case':True}])
-		self._scrubber.add_detector(custom_detector)
-		logging.debug(self._scrubber.__dict__)
-		return self._scrubber
+	#def scrubber_update(self):
+		#custom_detector = scrubadub.detectors.UserSuppliedFilthDetector( [
+		#	{'match': self.last_name, 'filth_type': 'name', 'ignore_case': True},
+		#	{'match': self.first_name, 'filth_type': 'name', 'ignore_case': True}])
+		#{'match': self.username, 'filth_type':'name', 'ignore_case':True}])
+		#cls._scrubber.add_detector(custom_detector)
+		#logging.debug(self._scrubber.__dict__)
+		#return self._scrubber
 
 	@property
-	def scrubber(self):
-		return self._scrubber
+	def scrubber(cls):
+		return cls._scrubber
 
 	def _date_calc(self):
 		'''Calculate derived dates and time intervals'''
@@ -101,18 +98,23 @@ class SMParserBase():
 	def in_date_range(self, check_dt):
 		'''	Evaluates whether date falls within the date range specified by the instance
 			Input: Datetime object, Output: boolean'''
-		#TODO ? accept either date or datetime
-		return self.first_date <= check_dt <= self.last_date
+		return False if check_dt is None else self.first_date <= check_dt.replace(tzinfo=None) <= self.last_date
         
-	def get_json(self, folder, filename):
+	def filter_by_date(self, data, key='Date'):     #data: list[dict{'Date'}]
+		'''Parses the string date into a Datetime, filters down to records within date range'''
+		return [c for c in data if self.in_date_range(dt_parser.parse(c.get(key,None)))]
+	
+	def get_json(self, folder, filename, output='object'):
 		'''Retrieves json file and returns an Object'''
 		json_path = self.zip_root / folder / f'{filename}.json'
+		if output == 'dict':
+			return json.loads(json_path.read_text(encoding='utf-8'))
 		return json.loads(json_path.read_text(), object_hook=lambda d:SimpleNamespace(**d))
 
 	def get_txt(self, folder, filename):
 		'''Retrieves txt data file and returns a List[Dict]'''
 		txt_path = self.zip_root / folder / f'{filename}.txt'
-		_txt_data = txt_path.read_text(encoding="utf-8")
+		_txt_data = txt_path.read_text(encoding='utf-8')
 		recs = _txt_data.split('\n\n')
 		drecs = [{k:v for k,v in [p.split(': ',1) for p in t.split('\n')]} for t in recs if len(t)>2]
 		return drecs	#SimpleNamespace(**drecs)
@@ -174,8 +176,16 @@ class SMParserBase():
     
 	def clean_text(self, text:str):
 		'''Scrub PII from text string'''
-		_text = self.scrubber.clean(text)
-		return re.sub(r'@\S*', "{{USERNAME}}", _text).encode('latin1', 'ignore').decode('utf8', 'ignore')
+		#_text = text.encode('latin1', 'ignore').decode('utf8', 'ignore')
+		_text = re.sub(self.first_name, '{{FIRSTNAME}}', text, flags=re.I)
+		_text = re.sub(self.last_name, '{{LASTNAME}}', _text, flags=re.I)
+		_text = re.sub(self.username, '{{USERNAME}}', _text, flags=re.I)
+		if len(self.person_alias.strip()) > 0:
+			_aliases = [a.strip() for a in self.person_alias.split(',')]
+			for alias in _aliases: 	
+				_text = re.sub(alias, '{{ALIAS}}', _text, re.I)
+		_text = re.sub(r'@\S*', '{{@NAME}}', _text)	
+		return self.scrubber.clean(_text)
 
 	@staticmethod
 	def ph_num(n:int):
@@ -206,7 +216,6 @@ class SMParserBase():
 			time = self.time_string(dt)
 		return dt, date, time
 
-
 #%%	    
 @dataclass
 class Media():
@@ -218,9 +227,6 @@ class Media():
 	Caption: str = ""
 	#Likes: str = ""	#Likes & Comments removed per Client guidance
 	#Comments: str = ""
-
-
-
 
 #%%
 def main_test():
@@ -254,4 +260,3 @@ def main_test():
 
 if __name__ == "__main__":
 	main_test()
-# %%

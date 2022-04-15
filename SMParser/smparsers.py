@@ -17,7 +17,6 @@ class FBParser(SMParserBase):
 	'''Social Media Parser class for Facebook data, v2 Schema'''
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		self.scrubber_update()
 
 	def parse_profile_metadata(self):
 		logging.info('Parsing FB profile metadata')
@@ -219,6 +218,7 @@ class FBParser(SMParserBase):
 		return None
 
 	def parse_data(self):
+		sg.Print('Parsing FB data')
 		self.rem_comments = list()
 		self.parse_profile_metadata()
 		self.parse_friends()
@@ -235,7 +235,6 @@ class IGParser(SMParserBase):
 	'''Social Media Parser class for Instagram data, v2 Schema'''
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		self.scrubber_update()
     
 	def parse_profile_metadata(self):
 		logging.info('Parsing IG profile metadata')
@@ -336,6 +335,7 @@ class IGParser(SMParserBase):
 		return None
 
 	def parse_data(self):
+		sg.Print('Parsing IG data')
 		self.parse_profile_metadata()
 		self.parse_follow()
 		self.parse_comments()
@@ -347,14 +347,15 @@ class IGParser(SMParserBase):
 
 #%%
 class TTParser(SMParserBase):
-	'''Parser class for TikTok user data'''
+	'''Parser class for TikTok user data
+		(TT data does not include media files)'''
+		
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		self.scrubber_update()
 
 	def parse_profile_metadata(self):
 		logging.info('Parsing TT profile metadata')
-		data = (self.get_txt('Profile','Profile Info'))[0]
+		data = (self.get_txt('/Profile','Profile Info'))[0]
 		header = ['Profile Item', 'Value']
 		self.username = data["Username"]
 		data['Birthdate'] = '{{BIRTHDAY}}'
@@ -362,20 +363,15 @@ class TTParser(SMParserBase):
 		self.genCSV('TT_Profile', header, payload)
 		return None
 
-	def filter_by_date(self, data):     #data: list[dict{'Date'}]
-		'''Parses the string date into a Datetime, filters down to records within date range'''
-		#_dated_data = [c.update(Date = dt_parser.parse(c['Date'])) for c in data]
-		return [c for c in data if self.in_date_range(dt_parser.parse(c['Date']))]
-
 	def parse_follow(self):
 		'''Parsing TT follow activity - Aggregated Total counts'''
 		logging.info('Parsing TT Follow')
 		header = ['Followers', 'Following']
 		#Follower.txt -> {Date, Username}
 		#Following.txt -> {Date, Username}
-		data = self.get_txt('Activity', 'Follower')
+		data = self.get_txt('/Activity', 'Follower')
 		fdata = self.filter_by_date(data)
-		data2 = self.get_txt('Activity', 'Following')
+		data2 = self.get_txt('/Activity', 'Following')
 		fdata2 = self.filter_by_date(data2)
 		payload = [
 			{'Followers': len(fdata), 
@@ -389,9 +385,9 @@ class TTParser(SMParserBase):
 		header = ['Hashtag Name', 'Hashtag Link', 'Favorite']
 		#Hashtag.txt -> {Hashtag Name, Hashtag Link}
 		#Favorite HashTags.txt -> {Hashtag Name, Hashtag Link}
-		data = self.get_txt('Activity', 'Hashtag')
-		data2 = self.get_txt('Activity', 'Favorite HashTags')
-		#Note: No dates/times
+		data = self.get_txt('/Activity', 'Hashtag')
+		data2 = self.get_txt('/Activity', 'Favorite HashTags')
+		#Note: No dates/times -> No filtering by date
 		fht = [ht['Hashtag Name'] for ht in data2]
 		for ht in data:
 			ht['Favorite'] = 'Yes' if (ht['Hashtag Name'] in fht) else ''
@@ -403,11 +399,11 @@ class TTParser(SMParserBase):
 		#Searches.txt -> {Date, Search Term}
 		logging.info('Parsing TT Search Activity')
 		header = ['Date', 'Search Term']
-		data = self.get_txt('Activity', 'Searches')
+		data = self.get_txt('/Activity', 'Searches')
 		#Filter within date range
 		searches = self.filter_by_date(data)
-		scrub = lambda c: c.update({'Search Term': self.clean_text(c['Search Term'])})
-		map(scrub, searches)
+		for s in searches:
+			s.update({'Search Term': self.clean_text(s['Search Term'])})
 		self.genCSV('TT_searches', header, searches)
 		return None
 
@@ -416,8 +412,7 @@ class TTParser(SMParserBase):
 		#Likes.txt -> {Date, Video Link}
 		logging.info('Parsing TT Search Activity')
 		header = ['Date', 'Video Link']
-		data = self.get_txt('Activity', 'Likes')
-		#Filter within date range
+		data = self.get_txt('/Activity', 'Likes')
 		payload = self.filter_by_date(data)
 		self.genCSV('TT_likes', header, payload)
 		return None
@@ -428,9 +423,9 @@ class TTParser(SMParserBase):
 		#Video Browsing.txt -> {Date, Video Link}
 		#Favorite Videos.txt -> {Date, Video Link}
 		header = ['Date', 'Video Link', 'Favorite']
-		data = self.get_txt('Activity', 'Video Browsing')
-		data2 = self.get_txt('Activity', 'Favorite Videos')
-		data3 = self.get_txt('Activity', 'Likes')
+		data = self.get_txt('/Activity', 'Video Browsing')
+		data2 = self.get_txt('/Activity', 'Favorite Videos')
+		data3 = self.get_txt('/Activity', 'Likes')
 		#Filter within date range & correlate Favs + Likes
 		fvids = self.filter_by_date(data)
 		fav = [vid['Video Link'] for vid in data2]
@@ -446,11 +441,11 @@ class TTParser(SMParserBase):
 		# Comments.txt -> {Date, Comment}
 		logging.info('Parsing TT Comments from others')
 		header = ['Date', 'Comment']
-		data = self.get_txt('Comments', 'Comments')
+		data = self.get_txt('/Comments', 'Comments')
 		#Filter within date range & scrub comment
 		all_comments = self.filter_by_date(data)
-		scrub = lambda c: c.update({'Comment': self.clean_text(c['Comment'])})
-		map(scrub, all_comments)
+		for c in all_comments:
+			c.update({'Comment': self.clean_text(c['Comment'])})
 		self.genCSV('TT_comments', header, all_comments)
 		return None
 
@@ -459,13 +454,13 @@ class TTParser(SMParserBase):
 		# Videos.txt -> {Date, Video Link, Like(s)}
 		logging.info('Parsing TT Videos posted by user')
 		header = ['Date', 'Video Link', 'Like(s)']
-		data = self.get_txt('Videos', 'Videos')
-		#Filter within date range
+		data = self.get_txt('/Videos', 'Videos')
 		payload = self.filter_by_date(data)
 		self.genCSV('TT_videos', header, payload)
 		return None
 
 	def parse_data(self):
+		sg.Print('Parsing TT data')
 		self.parse_profile_metadata()
 		self.parse_follow()
 		self.parse_hashtags()
@@ -500,55 +495,79 @@ class TTParser(SMParserBase):
     '''
 #%%
 class SCParser(SMParserBase):
-    '''Parser class for SnapChat data'''
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.scrubber_update()
+	'''Parser class for SnapChat data
+		(SC data does not include media files)'''
+	def __init__(self, *args, **kwargs):
+		super().__init__(*args, **kwargs)
 
-    def parse_profile_metadata(self):
-        logging.info('Parsing SC profile metadata')
-        data = self.get_json('','user_profile')
-        header = ['Profile Item', 'Value']
-        self.username = data["Username"]
-        data['Birthdate'] = '{{BIRTHDAY}}'
-        payload = [{'Profile Item':k, 'Value': self.scrubber.clean(v)} for k,v in data] 
-        self.genCSV('SC_Profile', header, payload)
-        return None
+	def parse_friends(self):
+		'''Parse SC Friends - Aggregated counts/totals'''
+		logging.info(f'Parsing {self.username} SC friends metadata')
+		data = self.get_json('json','friends','dict')
+		header = ['Metric', 'Count']
+		payload = [{'Metric':k, 'Count':len(v)} for k,v in data.items()]
+		self.genCSV("SC_friends", header, payload)
+		return None
 
-    def parse_follow(self):
-        '''Parsing SC followers - Aggregated Total counts'''
-        logging.info("Parsing SC Follow")
-        data = self.get_json('', 'friends')
-        #data2 = self.get_json('followers_and_following', 'following')
-        header = ['Friends', 'Blocked', 'Pending']
-        payload = [ {'Friends': len(data.friends)},
-                    {'Blocked': len(data.blocked)},
-                    {'Pending': len(data.pending)}] 
-        self.genCSV("SC_follow", header, payload)
+	def parse_views(self):
+		'''Parse SC views by type'''
+		logging.info(f'Parsing {self.username} SC views')
+		data = self.get_json('json', 'story_history', output='dict')
+		header = set(['Viewer', 'STORY', 'VIDEO', 'OTHER'])
+		payload = []
+		oth = lambda v: "OTHER" if v == "" else v
+		for viewer, views in data.items():
+			_fdata = self.filter_by_date(views, "View Date")
+			_payload = {'Viewer':viewer}
+			_payload.update(dict(Counter([oth(v["Media Type"]) for v in _fdata])))
+			payload.append(_payload)
+			header.update(_payload.keys())
+		self.genCSV("SC_Views", list(header), payload)
+		return None
 
-    def parse_friends(self):
-        '''Parse SC Friends - Aggregated counts/totals'''
-        logging.info(f'Parsing {self.username} SC friends metadata')
-        data = self.get_json('json','friends')
-        #data2 = self.get_json('friends_and_followers','removed_friends')
-        header = ['Total Friends', 'Removed Friends']
-        payload = [
-            {'Total Friends': len(data.friends), 
-            'Removed Friends': ''}]  #len(data2.deleted_friends_v2)}]
-        self.genCSV("FB_friends", header, payload)
-        return None
-    '''
+	def parse_content_and_interests(self):
+		logging.info('Parsing SC profile metadata')
+		data = self.get_json('json', 'user_profile', output='dict')
+		#Record one CSV with percentages of time spent
+		header = ['Category', 'Value']
+		def splitter(c):
+			k,v = c.split(": ")
+			return {'Category':k, 'Value':v}
+		payload = [splitter(c) for c in data.get("Breakdown of Time Spent on App", "Data Not Found: 100%")] 
+		self.genCSV('SC_Time_Spent', header, payload)
+		#Record a second CSV with columns of the various content/interest lists
+		data2 = self.get_json('json', 'subscriptions', output='dict')
+		data3 = self.get_json('json', 'ranking', output='dict')		
+		header = ['Profile Interest Category', 'Discover Channel', 'Subscription', 'Ranking Content Interests']
+		_a = map(self.scrubber.clean, data.get("Interest Categories", ['None found']))
+		_b = map(self.scrubber.clean, [v["Channel Name"] for v in data["Discover Channels Viewed"]])
+		_c = map(self.scrubber.clean, data2.get("Publishers", ['None found']))
+		_d = map(self.scrubber.clean, data3.get("Content Interests", ['None found']))
+		_values = itertools.zip_longest(_a, _b, _c, _d, fillvalue='')
+		payload = [dict(zip(header, _value)) for _value in _values] 
+		self.genCSV('SC_Interaction_Types', header, payload)
+		return None
+
+	def parse_data(self):
+		sg.Print('Parsing SC data')
+		self.parse_views()
+		self.parse_friends()
+		self.parse_content_and_interests()
+
+'''
    X friends.json
-    ranking.json
-    story_history.json
-    talk_history.json
+   x ranking.json
+   x story_history.json
+   NO talk_history.json
    X user_profile.json
-    ?Public profile?'''
+   x ?Public profile?'''
 
-    '''Snapchat: 
-
+'''Snapchat: 
     time spent on app = ??
-    type of content participant is interacting with = ranking.json OR user_profile.json under "Discover Channels Viewed" and "Interest Categories" OR subscriptions.json "
+    type of content participant is interacting with = 
+		ranking.json 
+		OR user_profile.json under "Discover Channels Viewed" and "Interest Categories" 
+		OR subscriptions.json "
    X number of followers = friends.json
-    number of views on participant's posts = story_history.json
+   X number of views on participant's posts = story_history.json
    X friend requests sent, deleted users and blocked users, and ignored snapchatters by participant = ??'''
