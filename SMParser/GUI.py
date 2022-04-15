@@ -9,7 +9,7 @@ import PySimpleGUI as sg
 from . import appresources
 
 def appGUI():
-	print('TODO: Future improvement to launch without restarting program')
+	print('TODO: Future improvement to launch participant entry without restarting program')
 	sg.theme('DarkBrown4')
 	return None
 
@@ -28,7 +28,7 @@ def candidateGUI():
 				[sg.T('Fill in details for this Candidate:')],
 				[sg.Column([[sg.T('First Name: ')],
 							[sg.T('Last Name: ')],
-							[sg.T('Alias List: ')]]),
+							[sg.T('Alias List: \n(Separate by commas)')]]),
 				sg.Column([	[sg.I(key='person_first_name') ],
 							[sg.I(key='person_last_name')],
 							[sg.I(key='person_alias')]])
@@ -45,10 +45,10 @@ def candidateGUI():
 							[sg.CB('TT', default=True, enable_events=True, k='TTyes')],
 							[sg.CB('SC', default=True, enable_events=True, k='SCyes')]]),
 				sg.Column([	[sg.T('Zip File Paths:')],
-							[sg.I(key='FBzip', justification='right'), sg.FileBrowse('<<< FB')],
-							[sg.I(key='IGzip', justification='right'), sg.FileBrowse('<<< IG')],
-							[sg.I(key='TTzip', justification='right'), sg.FileBrowse('<<< TT')],
-							[sg.I(key='SCzip', justification='right'), sg.FileBrowse('<<< SC')]])
+							[sg.I(key='FBzip', justification='right'), sg.FileBrowse('<<< FB',size=7)],
+							[sg.I(key='IGzip', justification='right'), sg.FileBrowse('<<< IG',size=7)],
+							[sg.I(key='TTzip', justification='right'), sg.FileBrowse('<<< TT',size=7)],
+							[sg.I(key='SCzip', justification='right'), sg.FileBrowse('<<< SC',size=7)]])
 				],
 				[sg.HorizontalSeparator()],
 				[sg.Image(LOGO), sg.OK(disabled=True), sg.Cancel()],

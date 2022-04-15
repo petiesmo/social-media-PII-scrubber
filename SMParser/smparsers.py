@@ -219,6 +219,7 @@ class FBParser(SMParserBase):
 		return None
 
 	def parse_data(self):
+		sg.Print('Parsing FB data')
 		self.rem_comments = list()
 		self.parse_profile_metadata()
 		self.parse_friends()
@@ -336,6 +337,7 @@ class IGParser(SMParserBase):
 		return None
 
 	def parse_data(self):
+		sg.Print('Parsing IG data')
 		self.parse_profile_metadata()
 		self.parse_follow()
 		self.parse_comments()
@@ -403,10 +405,8 @@ class TTParser(SMParserBase):
 		data = self.get_txt('/Activity', 'Searches')
 		#Filter within date range
 		searches = self.filter_by_date(data)
-		sg.Print(f'Pre-{searches=}')
-		scrub = lambda c: c.update({'Search Term': self.clean_text(c['Search Term'])})
-		scrubmap = map(scrub, searches)
-		sg.Print(f'Post-{searches=}')
+		for s in searches:
+			s.update({'Search Term': self.clean_text(s['Search Term'])})
 		self.genCSV('TT_searches', header, searches)
 		return None
 
@@ -448,11 +448,8 @@ class TTParser(SMParserBase):
 		data = self.get_txt('/Comments', 'Comments')
 		#Filter within date range & scrub comment
 		all_comments = self.filter_by_date(data)
-		sg.Print(f'Pre-{all_comments=}')
-		scrub = lambda c: c.update({'Comment': self.clean_text(c['Comment'])})
-		scrubmap = map(scrub, all_comments)
-		sg.Print(f'Post-{all_comments=}')
-		#payload = [c for c in scrubmap]
+		for c in all_comments:
+			c.update({'Comment': self.clean_text(c['Comment'])})
 		self.genCSV('TT_comments', header, all_comments)
 		return None
 
@@ -468,6 +465,7 @@ class TTParser(SMParserBase):
 		return None
 
 	def parse_data(self):
+		sg.Print('Parsing TT data')
 		self.parse_profile_metadata()
 		self.parse_follow()
 		self.parse_hashtags()
@@ -557,6 +555,7 @@ class SCParser(SMParserBase):
 		return None
 
 	def parse_data(self):
+		sg.Print('Parsing SC data')
 		self.parse_views()
 		self.parse_friends()
 		self.parse_content_and_interests()

@@ -3,7 +3,6 @@
 import csv
 from dataclasses import dataclass
 from datetime import datetime
-from importlib import resources #.read_binary .read_text
 import json
 import logging
 from pathlib import Path
@@ -181,9 +180,10 @@ class SMParserBase():
 		_text = re.sub(self.first_name, '{{FIRSTNAME}}', text, flags=re.I)
 		_text = re.sub(self.last_name, '{{LASTNAME}}', _text, flags=re.I)
 		_text = re.sub(self.username, '{{USERNAME}}', _text, flags=re.I)
-		_aliases = [a.strip() for a in self.person_alias.split(',')]
-		for alias in _aliases: 	
-			_text = re.sub(alias, '{{ALIAS}}', _text, re.I)
+		if len(self.person_alias.strip()) > 0:
+			_aliases = [a.strip() for a in self.person_alias.split(',')]
+			for alias in _aliases: 	
+				_text = re.sub(alias, '{{ALIAS}}', _text, re.I)
 		_text = re.sub(r'@\S*', '{{@NAME}}', _text)	
 		return self.scrubber.clean(_text)
 
@@ -228,9 +228,6 @@ class Media():
 	Caption: str = ""
 	#Likes: str = ""	#Likes & Comments removed per Client guidance
 	#Comments: str = ""
-
-
-
 
 #%%
 def main_test():
