@@ -17,7 +17,6 @@ class FBParser(SMParserBase):
 	'''Social Media Parser class for Facebook data, v2 Schema'''
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		#self.scrubber_update()
 
 	def parse_profile_metadata(self):
 		logging.info('Parsing FB profile metadata')
@@ -236,7 +235,6 @@ class IGParser(SMParserBase):
 	'''Social Media Parser class for Instagram data, v2 Schema'''
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		#self.scrubber_update()
     
 	def parse_profile_metadata(self):
 		logging.info('Parsing IG profile metadata')
@@ -354,7 +352,6 @@ class TTParser(SMParserBase):
 		
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		#self.scrubber_update()
 
 	def parse_profile_metadata(self):
 		logging.info('Parsing TT profile metadata')
@@ -390,7 +387,7 @@ class TTParser(SMParserBase):
 		#Favorite HashTags.txt -> {Hashtag Name, Hashtag Link}
 		data = self.get_txt('/Activity', 'Hashtag')
 		data2 = self.get_txt('/Activity', 'Favorite HashTags')
-		#Note: No dates/times
+		#Note: No dates/times -> No filtering by date
 		fht = [ht['Hashtag Name'] for ht in data2]
 		for ht in data:
 			ht['Favorite'] = 'Yes' if (ht['Hashtag Name'] in fht) else ''
@@ -416,7 +413,6 @@ class TTParser(SMParserBase):
 		logging.info('Parsing TT Search Activity')
 		header = ['Date', 'Video Link']
 		data = self.get_txt('/Activity', 'Likes')
-		#Filter within date range
 		payload = self.filter_by_date(data)
 		self.genCSV('TT_likes', header, payload)
 		return None
@@ -459,7 +455,6 @@ class TTParser(SMParserBase):
 		logging.info('Parsing TT Videos posted by user')
 		header = ['Date', 'Video Link', 'Like(s)']
 		data = self.get_txt('/Videos', 'Videos')
-		#Filter within date range
 		payload = self.filter_by_date(data)
 		self.genCSV('TT_videos', header, payload)
 		return None
@@ -504,7 +499,6 @@ class SCParser(SMParserBase):
 		(SC data does not include media files)'''
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
-		#self.scrubber_update()
 
 	def parse_friends(self):
 		'''Parse SC Friends - Aggregated counts/totals'''

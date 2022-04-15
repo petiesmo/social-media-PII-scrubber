@@ -55,7 +55,6 @@ def main_sm_parsing(TESTMODE=False):
 		FB.parse_data()
 		logging.info('FB Parsing complete'); sg.popup_timed('FB Parsing complete', non_blocking=True)
 		
-
 	if not ci.IGyes or not Path(ci.IGzip).suffix=='.zip':
 		logging.info('Skipped IG')
 	else:
@@ -85,7 +84,6 @@ def main_sm_parsing(TESTMODE=False):
 		logging.info(f'{SC}')
 		SC.parse_data() 
 		logging.info('SC Parsing complete'); sg.popup_timed('SC Parsing complete', non_blocking=True)
-
 	return True
 
 	

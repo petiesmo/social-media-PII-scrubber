@@ -216,7 +216,6 @@ class SMParserBase():
 			time = self.time_string(dt)
 		return dt, date, time
 
-
 #%%	    
 @dataclass
 class Media():
@@ -261,4 +260,3 @@ def main_test():
 
 if __name__ == "__main__":
 	main_test()
-# %%

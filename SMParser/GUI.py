@@ -60,7 +60,6 @@ def candidateGUI():
 	# Event Loop
 	while True:     
 		event, values = window.read(timeout=1000)
-
 		THEN = dt_parser.parse(values['last_date']) - relativedelta(months=int(values['months_back']))
 		window['first_date'].update(THEN.strftime(format='%m-%d-%Y'))
 
@@ -82,6 +81,6 @@ def candidateGUI():
 			logging.info('The User closed the data entry screen')
 			window.close()
 			return None
-	
+
 	window.close()
 	return values
