@@ -70,6 +70,7 @@ if __name__ == '__main__':
 	#logging.basicConfig(stream=sys.stdout, level=logging.DEBUG)
 	
 	main_sm_parsing()
+	sg.Print('SM Parsing completed.'); logging.info('SM Parsing program complete')
 	print('al fin')
 
 #--- Input Data For testing only ---

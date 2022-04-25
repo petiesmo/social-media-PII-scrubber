@@ -415,8 +415,9 @@ class TTParser(SMParserBase):
 		logging.info('Parsing TT Search Activity')
 		header = ['Date', 'Video Link']
 		data = self.get_txt('/Activity', 'Likes')
-		_payload = self.filter_by_date(data)
-		payload = [d.update({'Video Link': '{{URL}}'}) for d in _payload]
+		payload = self.filter_by_date(data)
+		for d in payload:
+			d.update({'Video Link': '{{URL}}'})
 		self.genCSV('TT_likes', header, payload)
 		return None
 
@@ -459,8 +460,9 @@ class TTParser(SMParserBase):
 		logging.info('Parsing TT Videos posted by user')
 		header = ['Date', 'Video Link', 'Like(s)']
 		data = self.get_txt('/Videos', 'Videos')
-		_payload = self.filter_by_date(data)
-		payload = [d.update({'Video Link': '{{URL}}'}) for d in _payload]
+		payload = self.filter_by_date(data)
+		for d in payload:
+			d.update({'Video Link': '{{URL}}'})
 		self.genCSV('TT_videos', header, payload)
 		return None
 
@@ -468,8 +470,8 @@ class TTParser(SMParserBase):
 		sg.Print('Parsing TT data')
 		self.parse_profile_metadata()
 		self.parse_follow()
-		self.parse_hashtags()
-		self.parse_user_searches()
+		#self.parse_hashtags()
+		#self.parse_user_searches()
 		self.parse_user_likes()
 		self.parse_video_browsing()
 		self.parse_comments_from_others()
