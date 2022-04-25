@@ -1,6 +1,5 @@
-#! /bin/python3/smparserApp.py
+#! /bin/python3 smparserApp.py
 #%%
-
 import logging
 from pathlib import Path
 from types import SimpleNamespace
@@ -10,30 +9,6 @@ from .GUI import candidateGUI
 from .smparsers import IGParser, FBParser
 from .smparsers import TTParser, SCParser
 #%%
-'''def resource_path(relative_path):
-	#Discovers the temporary extract folder for the Executable,
-		for loading stored images or other data
-	try:
-		base_path = Path(sys._MEIPASS)
-	except Exception:
-		base_path = Path.cwd()
-	return str(base_path / relative_path)
-'''
-#--- For testing only ---
-fake_GUI_output = {
-	'person_first_name':	'Maggie',
-	'person_last_name':		'Nail',
-	'person_alias':			'megs',
-	'last_date':			'2022-03-24',
-	'months_back':			'24',
-	'fp_person':			r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\Good Test\Person11',
-	'FByes': True, 'IGyes': True, 'TTyes': True, 'SCyes': False,
-	'FBzip':				r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\Good Test\Person1\Inbox\FB-facebook-maggienail16.zip',
-	'IGzip':				r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\Good Test\Person1\Inbox\IG-volunteer1-maggie.zip',
-	'TTzip':				r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\TikTok\TikTok1.zip',
-	'SCzip':				''
-}
-
 def main_sm_parsing(TESTMODE=False):
 	candidate_info = candidateGUI() if not TESTMODE else fake_GUI_output
 	if candidate_info is None: return None 
@@ -96,6 +71,21 @@ if __name__ == '__main__':
 	
 	main_sm_parsing()
 	print('al fin')
+
+#--- Input Data For testing only ---
+fake_GUI_output = {
+	'person_first_name':	'Maggie',
+	'person_last_name':		'Nail',
+	'person_alias':			'megs',
+	'last_date':			'2022-03-24',
+	'months_back':			'24',
+	'fp_person':			r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\Good Test\Person11',
+	'FByes': True, 'IGyes': True, 'TTyes': True, 'SCyes': False,
+	'FBzip':				r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\Good Test\Person1\Inbox\FB-facebook-maggienail16.zip',
+	'IGzip':				r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\Good Test\Person1\Inbox\IG-volunteer1-maggie.zip',
+	'TTzip':				r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\TikTok\TikTok1.zip',
+	'SCzip':				''
+}
 
 #us = sg.UserSettings()
 #sg.user_settings_filename(path=tempdir)
