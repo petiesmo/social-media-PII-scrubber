@@ -24,3 +24,7 @@ Python utility for Parsing and scrubbing PII from social media dumps
 -- (edit) Line 66:     "en": "en_core_web_sm",
 -- (add)  Line 148:     models.append('en_core_web_sm')
 - Note: The Pyinstaller process (from launch_smparser.spec) requires numerous 'hook' files to collect the hidden imports and data files.  These are included in the ./hooks folder.  Several 'standard' hooks were also revised to 'collectall' - [numpy, packaging, sacremoses...] 
+
+## Release Notes
+- v0.3 - TTParser modified to suit data anonymity
+- v0.2 - SCParser added; New feature: Alias a custom list of values; Fix: Update Starting Date as duration is changed
