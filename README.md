@@ -13,6 +13,8 @@ Python utility for Parsing and scrubbing PII from social media dumps
 - Lower temp memory demands: Zip files are not unzipped/destroyed
 - GUI: Simple input form for input values & launch parser
 
+![SMParser Main Screen](https://raw.githubusercontent.com/petiesmo/social-media-PII-scrubber/pjs-dev/SMParser_MainScreen.PNG)
+
 ## Installation sequence
 - Download Visual Studio
 - Install cmake
