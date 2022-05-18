@@ -1,4 +1,4 @@
-#smparser-classes.py
+#! python3 smparserbase.py
 #%%
 import csv
 from dataclasses import dataclass
@@ -175,7 +175,7 @@ class SMParserBase():
 		return None
     
 	def clean_text(self, text:str):
-		'''Scrub PII from text string'''
+		'''Scrub PII from text string. Specifically enforces the list of values in Alias'''
 		#_text = text.encode('latin1', 'ignore').decode('utf8', 'ignore')
 		_text = re.sub(self.first_name, '{{FIRSTNAME}}', text, flags=re.I)
 		_text = re.sub(self.last_name, '{{LASTNAME}}', _text, flags=re.I)
@@ -230,32 +230,7 @@ class Media():
 
 #%%
 def main_test():
-	#For Testing Only
-	#fp_person = Path(r'C:\Users\pjsmole\Documents\GitHub\social-media-PII-scrubber\test-data\inbox\TEMP\Person3')
-	'''person_name = 'MM'
-	person_alias = 'Volunteer3'
-	months_back = 24
-	last_date = datetime.today()
-
-	logfile = fp_person / 'parser.log'
-	logging.basicConfig(format='%(asctime)s|%(levelname)s:%(message)s', filename=logfile, level=logging.DEBUG, encoding='utf-8')
-
-	IGzip = fp_person / 'Inbox' / 'IG-Instagram-Meg-Nesi.zip'
-	FBzip = fp_person / 'Inbox' / 'FB-facebook-MMaron-100010016043358.zip'
-
-	logging.info(f'Person: {person_name}, Alias: {person_alias}')
-	logging.info(f'Last time: {last_date}, Months Back: {months_back}')
-	logging.info(f'IG File: {IGzip}')
-	logging.info(f'FB File: {FBzip}')
-
-	IG = IGParser(person_name, person_alias, IGzip, home_dir=fp_person, months_back=months_back, last_date=last_date)
-	IG.parse_IG_data() 
-	print('IG Parsing complete')
-	
-	FB = FBParser(person_name, person_alias, FBzip, home_dir=fp_person, months_back=months_back, last_date=last_date)
-	FB.parse_FB_data()
-	print('FB Parsing complete')'''
-
+	#Future TODO: Write unit tests for base class methods
 	print('al fin')
 
 if __name__ == "__main__":

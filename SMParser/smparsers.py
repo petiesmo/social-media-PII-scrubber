@@ -1,6 +1,6 @@
-#smparser-classes2.py
-#Parsing methods unique to each platform
-#%%smparserbase
+#! python3 smparsers.py
+#Parsing methods unique to each Social Media (SM) platform
+#%%
 from collections import Counter
 from datetime import datetime
 import itertools
@@ -359,6 +359,7 @@ class TTParser(SMParserBase):
 		header = ['Profile Item', 'Value']
 		self.username = data["Username"]
 		data['Birthdate'] = '{{BIRTHDAY}}'
+		data['Email Address'] = '{{EMAIL}}'
 		payload = [{'Profile Item':k, 'Value': self.clean_text(v)} for k,v in data.items()] 
 		self.genCSV('TT_Profile', header, payload)
 		return None
@@ -379,7 +380,8 @@ class TTParser(SMParserBase):
 		self.genCSV('TT_follow', header, payload)
 		return None
 
-	def parse_hashtags(self):
+		#Note: TT Hashtags and Searches were deleted per Client request - Apr2022
+		"""	def parse_hashtags(self):
 		'''Parsing TT Hashtags - List of Hashtags with favorites noted'''
 		logging.info('Parsing TT Hashtags')
 		header = ['Hashtag Name', 'Hashtag Link', 'Favorite']
@@ -405,7 +407,7 @@ class TTParser(SMParserBase):
 		for s in searches:
 			s.update({'Search Term': self.clean_text(s['Search Term'])})
 		self.genCSV('TT_searches', header, searches)
-		return None
+		return None """
 
 	def parse_user_likes(self):
 		'''Parsing TT Like activity - List of Likes by date/time'''
@@ -414,6 +416,8 @@ class TTParser(SMParserBase):
 		header = ['Date', 'Video Link']
 		data = self.get_txt('/Activity', 'Likes')
 		payload = self.filter_by_date(data)
+		for d in payload:
+			d.update({'Video Link': '{{URL}}'})
 		self.genCSV('TT_likes', header, payload)
 		return None
 
@@ -433,6 +437,7 @@ class TTParser(SMParserBase):
 		for vid in fvids:
 			vid['Favorite'] = 'Yes' if (vid['Video Link'] in fav) else ''
 			vid['Liked'] = 'Yes' if (vid['Video Link'] in lk) else ''
+			vid['Video Link'] = '{{URL}}'
 		self.genCSV('TT_video_browing', header, fvids)
 		return None
 
@@ -456,6 +461,8 @@ class TTParser(SMParserBase):
 		header = ['Date', 'Video Link', 'Like(s)']
 		data = self.get_txt('/Videos', 'Videos')
 		payload = self.filter_by_date(data)
+		for d in payload:
+			d.update({'Video Link': '{{URL}}'})
 		self.genCSV('TT_videos', header, payload)
 		return None
 
@@ -463,15 +470,15 @@ class TTParser(SMParserBase):
 		sg.Print('Parsing TT data')
 		self.parse_profile_metadata()
 		self.parse_follow()
-		self.parse_hashtags()
-		self.parse_user_searches()
+		#self.parse_hashtags()
+		#self.parse_user_searches()
 		self.parse_user_likes()
 		self.parse_video_browsing()
 		self.parse_comments_from_others()
 		self.parse_user_videos()
-		# Note: No 'media' to scrub
-	'''
-    App Settings\Block List.txt
+		# Note: TT data comes with No 'media' to scrub
+	
+"""  App Settings\Block List.txt
   X  Activity\Favorite HashTags.txt
   X  Activity\Hashtag.txt
   X  Activity\Follower.txt
@@ -492,7 +499,7 @@ class TTParser(SMParserBase):
   X  most watched videos = Activity --> Favorite Videos
   X  time stamps from when videos were posted or browsed = ??
   X  number of likes on participant's posts =  Activity --> Likes
-    '''
+"""
 #%%
 class SCParser(SMParserBase):
 	'''Parser class for SnapChat data
@@ -553,7 +560,7 @@ class SCParser(SMParserBase):
 		self.parse_views()
 		self.parse_friends()
 		self.parse_content_and_interests()
-
+		#Note: SC data does not come with Media files
 '''
    X friends.json
    x ranking.json
