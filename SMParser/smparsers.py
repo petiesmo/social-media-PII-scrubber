@@ -561,6 +561,7 @@ class SCParser(SMParserBase):
 		self.parse_friends()
 		self.parse_content_and_interests()
 		#Note: SC data does not come with Media files
+
 '''
    X friends.json
    x ranking.json
