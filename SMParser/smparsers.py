@@ -434,11 +434,16 @@ class TTParser(SMParserBase):
 		fvids = self.filter_by_date(data)
 		fav = [vid['Video Link'] for vid in data2]
 		lk = [vid['Video Link'] for vid in data3]
-		for vid in fvids:
+		MAX = len(fvids)
+		for i, vid in enumerate(fvids):
+			#Progress Meter
+			if not sg.one_line_progress_meter('TT Browsing Anonymizer', i+1, MAX, 'Processing TT Vid Browsing') and i+1 != MAX:
+				sg.popup_auto_close('Cancelling your loop...')
+				break
 			vid['Favorite'] = 'Yes' if (vid['Video Link'] in fav) else ''
 			vid['Liked'] = 'Yes' if (vid['Video Link'] in lk) else ''
 			vid['Video Link'] = '{{URL}}'
-		self.genCSV('TT_video_browing', header, fvids)
+		self.genCSV('TT_video_browsing', header, fvids)
 		return None
 
 	def parse_comments_from_others(self):

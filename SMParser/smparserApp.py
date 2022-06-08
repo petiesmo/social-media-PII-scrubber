@@ -1,6 +1,8 @@
 #! /bin/python3 smparserApp.py
 #%%
 import logging
+import os
+os.environ["PYTHONWARNINGS"] = "ignore"
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -16,7 +18,8 @@ def main_sm_parsing(TESTMODE=False):
 	logfile = Path(ci.fp_person) / 'parser.log'
 	logging.basicConfig(format='%(asctime)s|%(levelname)s:%(message)s', filename=logfile, level=logging.DEBUG) #, encoding='utf-8')
 	#Diagnostics
-	logging.info(f'Person: {ci.person_first_name} {ci.person_last_name}, Alias: {ci.person_alias}')
+	logging.info(f'Candidate ID: {ci.person_ID_number}')
+	logging.info(f'Person: {ci.person_first_name} {ci.person_last_name}, Aliases: {ci.person_alias}')
 	logging.info(f'Last time: {ci.last_date}, Months Back: {ci.months_back}')
 	logging.info(f'FB File: {ci.FBzip}\nIG File: {ci.IGzip}\nTT file: {ci.TTzip}\nSC file: {ci.SCzip}')
 	#Launch Parsers
@@ -24,7 +27,7 @@ def main_sm_parsing(TESTMODE=False):
 		logging.info('Skipped FB')
 	else:
 		sg.popup_timed('FB Parsing started', non_blocking=True)
-		FB = FBParser(	last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
+		FB = FBParser(	candidate_id=ci.person_ID_number, last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
 					zip_path=ci.FBzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
 		logging.info(f'{FB}')
 		FB.parse_data()
@@ -34,7 +37,7 @@ def main_sm_parsing(TESTMODE=False):
 		logging.info('Skipped IG')
 	else:
 		sg.popup_timed('IG Parsing started', non_blocking=True)
-		IG = IGParser(	last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
+		IG = IGParser(	candidate_id=ci.person_ID_number, last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
 					zip_path=ci.IGzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
 		logging.info(f'{IG}')
 		IG.parse_data() 
@@ -44,7 +47,7 @@ def main_sm_parsing(TESTMODE=False):
 		logging.info('Skipped TT'); sg.popup_timed('Skipped TT', non_blocking=True)
 	else:
 		sg.popup_timed('TT Parsing started', non_blocking=True)
-		TT = TTParser(	last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
+		TT = TTParser(	candidate_id=ci.person_ID_number, last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
 						zip_path=ci.TTzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
 		logging.info(f'{TT}')
 		TT.parse_data()
@@ -54,7 +57,7 @@ def main_sm_parsing(TESTMODE=False):
 		logging.info('Skipped SC'); sg.popup_timed('Skipped SC', non_blocking=True)
 	else:
 		sg.popup_timed('SC Parsing started', non_blocking=True)
-		SC = SCParser(	last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
+		SC = SCParser(	candidate_id=ci.person_ID_number, last_name=ci.person_last_name, first_name=ci.person_first_name, person_alias=ci.person_alias,
 						zip_path=ci.SCzip, home_dir=ci.fp_person, months_back=ci.months_back, last_date=ci.last_date)
 		logging.info(f'{SC}')
 		SC.parse_data() 

@@ -25,7 +25,8 @@ import scrubadub_spacy
 class SMParserBase():
 	VALID_TYPES = ['.bmp', '.jpeg', '.jpg', '.jpe', '.png', '.tiff', '.tif']
 
-	def __init__(self, last_name='Doe', first_name='J', person_alias='', zip_path=None, home_dir=None, months_back=None, last_date=None):
+	def __init__(self, candidate_id='000', last_name='Doe', first_name='J', person_alias='', zip_path=None, home_dir=None, months_back=None, last_date=None):
+		self.candidate_id = candidate_id
 		self.last_name = last_name
 		self.first_name = first_name
 		self.person_alias = person_alias
@@ -34,8 +35,8 @@ class SMParserBase():
 		self.zip_root = zipfile.Path(self.zip_file)
 
 		self.home_path = Path(home_dir) if home_dir is not None else Path(zip_path).parent.parent
-		self.outbox_path = self.home_path / 'outbox'
-		self.media_path = self.outbox_path / 'media'
+		self.outbox_path = self.home_path / f'{candidate_id}-outbox'
+		self.media_path = self.outbox_path / f'{candidate_id}-media'
 		self.media_path.mkdir(parents=True, exist_ok=True)
 		self.posts_media = list()
 
@@ -71,22 +72,27 @@ class SMParserBase():
 	@classmethod
 	def _setup_scrubber(cls):
 		cls._scrubber = scrubadub.Scrubber()
-		cls._scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector(model='en_core_web_sm'))
+		cls._scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector(model='en_core_web_trf'))
+		cls._scrubber.add_detector(scrubadub_spacy.detectors.SpacyNameDetector(model='en_core_web_trf'))
 		cls._scrubber.add_detector(scrubadub.detectors.DateOfBirthDetector(require_context=False))
 		logging.debug(cls._scrubber.__dict__)
-		
-	#def scrubber_update(self):
-		#custom_detector = scrubadub.detectors.UserSuppliedFilthDetector( [
-		#	{'match': self.last_name, 'filth_type': 'name', 'ignore_case': True},
-		#	{'match': self.first_name, 'filth_type': 'name', 'ignore_case': True}])
-		#{'match': self.username, 'filth_type':'name', 'ignore_case':True}])
-		#cls._scrubber.add_detector(custom_detector)
-		#logging.debug(self._scrubber.__dict__)
-		#return self._scrubber
 
 	@property
 	def scrubber(cls):
 		return cls._scrubber
+
+	def clean_text(self, text:str):
+		'''Scrub PII from text string. Specifically enforces the list of values in Alias'''
+		#_text = text.encode('latin1', 'ignore').decode('utf8', 'ignore')
+		_text = re.sub(self.first_name, '{{FIRSTNAME}}', text, flags=re.I)
+		_text = re.sub(self.last_name, '{{LASTNAME}}', _text, flags=re.I)
+		_text = re.sub(self.username, '{{USERNAME}}', _text, flags=re.I)
+		if len(self.person_alias.strip()) > 0:
+			_aliases = [a.strip() for a in self.person_alias.split(',')]
+			for alias in _aliases: 	
+				_text = re.sub(alias, '{{ALIAS}}', _text, re.I)
+		_text = re.sub(r'@\S*', '{{HANDLE}}', _text)	
+		return self.scrubber.clean(_text)
 
 	def _date_calc(self):
 		'''Calculate derived dates and time intervals'''
@@ -166,26 +172,13 @@ class SMParserBase():
 	def genCSV(self, csv_name, header, data):
 		'''Generate CSV files from data (a list of dicts)'''
 		logging.info(f'Creating the file {csv_name}')
-		csv_out = self.outbox_path / f'{csv_name}.csv'
+		csv_out = self.outbox_path / f'{self.candidate_id}-{csv_name}.csv'
 		with open(csv_out, "w+", encoding='utf-8', newline='') as csv_file:
 			csv_writer = csv.DictWriter(csv_file, fieldnames=header, extrasaction='ignore')
 			csv_writer.writeheader()
 			for entry in data:
 				csv_writer.writerow(entry)
 		return None
-    
-	def clean_text(self, text:str):
-		'''Scrub PII from text string. Specifically enforces the list of values in Alias'''
-		#_text = text.encode('latin1', 'ignore').decode('utf8', 'ignore')
-		_text = re.sub(self.first_name, '{{FIRSTNAME}}', text, flags=re.I)
-		_text = re.sub(self.last_name, '{{LASTNAME}}', _text, flags=re.I)
-		_text = re.sub(self.username, '{{USERNAME}}', _text, flags=re.I)
-		if len(self.person_alias.strip()) > 0:
-			_aliases = [a.strip() for a in self.person_alias.split(',')]
-			for alias in _aliases: 	
-				_text = re.sub(alias, '{{ALIAS}}', _text, re.I)
-		_text = re.sub(r'@\S*', '{{@NAME}}', _text)	
-		return self.scrubber.clean(_text)
 
 	@staticmethod
 	def ph_num(n:int):
@@ -231,6 +224,7 @@ class Media():
 #%%
 def main_test():
 	#Future TODO: Write unit tests for base class methods
+	print('Module is a namespace for classes to be inherited by media-specific parser classes')
 	print('al fin')
 
 if __name__ == "__main__":
