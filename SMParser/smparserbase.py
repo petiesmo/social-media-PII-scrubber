@@ -19,7 +19,7 @@ import numpy as np
 from PIL import Image, ImageFilter
 import PySimpleGUI as sg
 import scrubadub
-import scrubadub_spacy
+#import scrubadub_spacy
 
 #%%
 class SMParserBase():
@@ -72,9 +72,10 @@ class SMParserBase():
 	@classmethod
 	def _setup_scrubber(cls):
 		cls._scrubber = scrubadub.Scrubber()
-		cls._scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector(model='en_core_web_trf'))
-		cls._scrubber.add_detector(scrubadub_spacy.detectors.SpacyNameDetector(model='en_core_web_trf'))
-		cls._scrubber.add_detector(scrubadub.detectors.DateOfBirthDetector(require_context=False))
+		cls._scrubber.add_detector(scrubadub.detectors.TextBlobNameDetector)
+		#cls._scrubber.add_detector(scrubadub_spacy.detectors.SpacyEntityDetector(model='en_core_web_trf'))
+		#cls._scrubber.add_detector(scrubadub_spacy.detectors.SpacyNameDetector(model='en_core_web_trf'))
+		#cls._scrubber.add_detector(scrubadub.detectors.DateOfBirthDetector(require_context=False))
 		logging.debug(cls._scrubber.__dict__)
 
 	@property
@@ -92,7 +93,7 @@ class SMParserBase():
 			for alias in _aliases: 	
 				_text = re.sub(alias, '{{ALIAS}}', _text, re.I)
 		_text = re.sub(r'@\S*', '{{HANDLE}}', _text)	
-		return self.scrubber.clean(_text)
+		return self.scrubber.clean(_text, replace_with='identifier')
 
 	def _date_calc(self):
 		'''Calculate derived dates and time intervals'''

@@ -426,14 +426,14 @@ class TTParser(SMParserBase):
 		logging.info('Parsing TT video Activity')
 		#Video Browsing.txt -> {Date, Video Link}
 		#Favorite Videos.txt -> {Date, Video Link}
-		header = ['Date', 'Video Link', 'Favorite']
+		header = ['Date', 'Video Link', 'Liked', 'Favorite']
 		data = self.get_txt('/Activity', 'Video Browsing')
 		data2 = self.get_txt('/Activity', 'Favorite Videos')
 		data3 = self.get_txt('/Activity', 'Likes')
 		#Filter within date range & correlate Favs + Likes
 		fvids = self.filter_by_date(data)
-		fav = [vid['Video Link'] for vid in data2]
-		lk = [vid['Video Link'] for vid in data3]
+		fav = set([vid['Video Link'] for vid in data2])
+		lk = set([vid['Video Link'] for vid in data3])
 		MAX = len(fvids)
 		for i, vid in enumerate(fvids):
 			#Progress Meter

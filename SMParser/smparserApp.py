@@ -1,17 +1,17 @@
 #! /bin/python3 smparserApp.py
 #%%
 import logging
-import os
-os.environ["PYTHONWARNINGS"] = "ignore"
 from pathlib import Path
 from types import SimpleNamespace
 
+from dotenv import load_dotenv
 import PySimpleGUI as sg
 from .GUI import candidateGUI
 from .smparsers import IGParser, FBParser
 from .smparsers import TTParser, SCParser
 #%%
 def main_sm_parsing(TESTMODE=False):
+	load_dotenv()
 	candidate_info = candidateGUI() if not TESTMODE else fake_GUI_output
 	if candidate_info is None: return None 
 	ci = SimpleNamespace(**candidate_info) 
