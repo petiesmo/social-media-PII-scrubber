@@ -26,12 +26,14 @@ def candidateGUI():
 	'''Window for user inputs to launch the scrubber process'''
 	layout = [	[sg.Titlebar('PII Scrubber - Candidate Infomation')],
 				[sg.T('Fill in details for this Candidate:')],
-				[sg.Column([[sg.T('First Name: ')],
+				[sg.Column([[sg.T('Candidate ID#: ')],
+							[sg.T('First Name: ')],
 							[sg.T('Last Name: ')],
-							[sg.T('Alias List: \n(Separate by commas)')]]),
-				sg.Column([	[sg.I(key='person_first_name') ],
+							[sg.T('Alias List: ')]]),
+				sg.Column([	[sg.I(key='person_ID_number') ],
+							[sg.I(key='person_first_name')],
 							[sg.I(key='person_last_name')],
-							[sg.I(key='person_alias')]])
+							[sg.I(key='person_alias', tooltip='List of words to scrub \n (Separate by commas)')]])
 				],
 				[sg.T('Pick last date:'), sg.I(key='last_date',size=15, default_text=TODAYtxt), sg.CalendarButton('<<< End Date', format='%m-%d-%Y', default_date_m_d_y=TODAYmdy)],
 				[sg.T('How many months back?')], 
@@ -63,7 +65,7 @@ def candidateGUI():
 		THEN = dt_parser.parse(values['last_date']) - relativedelta(months=int(values['months_back']))
 		window['first_date'].update(THEN.strftime(format='%m-%d-%Y'))
 
-		OKcond = all([values['last_date'], values['months_back'], values['fp_person'],
+		OKcond = all([values['person_ID_number'], values['last_date'], values['months_back'], values['fp_person'],
 					values['FBzip'] if values['FByes'] else True, values['IGzip'] if values['IGyes'] else True,
 					values['TTzip'] if values['TTyes'] else True, values['SCzip'] if values['SCyes'] else True])
 
