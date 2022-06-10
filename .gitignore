@@ -1,6 +1,7 @@
 test-data/
 archive/
 smenv3/
+smenv4/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
