@@ -426,19 +426,24 @@ class TTParser(SMParserBase):
 		logging.info('Parsing TT video Activity')
 		#Video Browsing.txt -> {Date, Video Link}
 		#Favorite Videos.txt -> {Date, Video Link}
-		header = ['Date', 'Video Link', 'Favorite']
+		header = ['Date', 'Video Link', 'Liked', 'Favorite']
 		data = self.get_txt('/Activity', 'Video Browsing')
 		data2 = self.get_txt('/Activity', 'Favorite Videos')
 		data3 = self.get_txt('/Activity', 'Likes')
 		#Filter within date range & correlate Favs + Likes
 		fvids = self.filter_by_date(data)
-		fav = [vid['Video Link'] for vid in data2]
-		lk = [vid['Video Link'] for vid in data3]
-		for vid in fvids:
+		fav = set([vid['Video Link'] for vid in data2])
+		lk = set([vid['Video Link'] for vid in data3])
+		MAX = len(fvids)
+		for i, vid in enumerate(fvids):
+			#Progress Meter
+			if not sg.one_line_progress_meter('TT Browsing Anonymizer', i+1, MAX, 'Processing TT Vid Browsing') and i+1 != MAX:
+				sg.popup_auto_close('Cancelling your loop...')
+				break
 			vid['Favorite'] = 'Yes' if (vid['Video Link'] in fav) else ''
 			vid['Liked'] = 'Yes' if (vid['Video Link'] in lk) else ''
 			vid['Video Link'] = '{{URL}}'
-		self.genCSV('TT_video_browing', header, fvids)
+		self.genCSV('TT_video_browsing', header, fvids)
 		return None
 
 	def parse_comments_from_others(self):
